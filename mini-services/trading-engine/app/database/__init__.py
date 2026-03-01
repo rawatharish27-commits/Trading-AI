@@ -133,7 +133,7 @@ _db_initialized = False
 
 
 def init_db():
-    """Initialize PostgreSQL with retry logic"""
+    """Initialize Database (PostgreSQL or SQLite) with retry logic"""
     global engine, SessionLocal, _db_initialized
     
     if _db_initialized:
@@ -145,8 +145,11 @@ def init_db():
         logger.error("DATABASE_URL not set")
         return False
     
-    # Add SSL mode for cloud providers
-    if "sslmode" not in database_url:
+    # Check if using SQLite
+    is_sqlite = database_url.startswith('sqlite')
+    
+    # Add SSL mode for PostgreSQL cloud providers
+    if not is_sqlite and "sslmode" not in database_url:
         database_url += "&sslmode=require" if "?" in database_url else "?sslmode=require"
     
     max_retries = 5
@@ -154,19 +157,28 @@ def init_db():
     
     for attempt in range(max_retries):
         try:
-            logger.info(f"PostgreSQL connection attempt {attempt + 1}/{max_retries}")
+            db_type = "SQLite" if is_sqlite else "PostgreSQL"
+            logger.info(f"{db_type} connection attempt {attempt + 1}/{max_retries}")
             
-            engine = create_engine(
-                database_url,
-                pool_pre_ping=True,
-                pool_recycle=300,
-                pool_size=3,
-                max_overflow=5,
-                connect_args={
-                    "connect_timeout": 30,
-                    "application_name": "trading-ai-agent",
-                }
-            )
+            # Configure engine based on database type
+            if is_sqlite:
+                engine = create_engine(
+                    database_url,
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False}
+                )
+            else:
+                engine = create_engine(
+                    database_url,
+                    pool_pre_ping=True,
+                    pool_recycle=300,
+                    pool_size=3,
+                    max_overflow=5,
+                    connect_args={
+                        "connect_timeout": 30,
+                        "application_name": "trading-ai-agent",
+                    }
+                )
             
             # Test connection
             with engine.connect() as conn:
@@ -179,12 +191,17 @@ def init_db():
             Base.metadata.create_all(bind=engine)
             
             _db_initialized = True
-            logger.info("✅ PostgreSQL initialized successfully")
+            logger.info(f"✅ {db_type} initialized successfully")
             return True
             
         except Exception as e:
             logger.error(f"❌ Connection attempt {attempt + 1} failed: {type(e).__name__}")
             logger.error(f"   Details: {str(e)[:200]}")
+            
+            if is_sqlite:
+                # SQLite shouldn't need retries
+                logger.error("❌ SQLite initialization failed")
+                return False
             
             if attempt < max_retries - 1:
                 logger.info(f"   Retrying in {retry_delay}s...")

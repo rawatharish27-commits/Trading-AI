@@ -149,3 +149,40 @@ Verified Working:
 - SMC analysis endpoint responding
 - Risk state endpoint responding
 - Dashboard stats endpoint responding
+
+---
+Task ID: 12
+Agent: Main Developer
+Task: Local Deployment - Backend and Database locally, Frontend for Vercel
+
+Work Log:
+- Analyzed project requirements for local deployment
+- Docker not available in sandbox, switched to SQLite for local database
+- Updated database initialization to support both PostgreSQL and SQLite
+- Created `.env.local` configuration for Python backend with SQLite
+- Updated `.env` for Next.js frontend to use local backend (port 3030)
+- Installed Python dependencies (sqlalchemy, pydantic-settings, alembic, fastapi, uvicorn)
+- Started Python backend on port 3030 with SQLite database
+- Verified all API endpoints working:
+  - `/health` - HEALTHY status
+  - `/api/dashboard/stats` - Returns trade statistics
+  - `/api/smc/analyze` - SMC analysis working
+  - `/api/risk/state` - Risk management working
+
+Stage Summary:
+- Backend running locally on port 3030 with SQLite database
+- Database status: HEALTHY
+- Redis: DEGRADED (expected without Docker)
+- Broker: DEGRADED (paper trading mode)
+- All core features operational
+
+Files Modified:
+- `/mini-services/trading-engine/app/database/__init__.py` - Added SQLite support
+- `/mini-services/trading-engine/.env.local` - Local SQLite configuration
+- `/.env` - Updated NEXT_PUBLIC_API_URL for local backend
+- `/docker-compose.local.yml` - Created for future Docker deployment
+
+Next Steps for User:
+1. For Vercel deployment: Run `vercel --prod` from project root
+2. Set environment variable on Vercel: `NEXT_PUBLIC_API_URL=http://YOUR_LOCAL_IP:3030`
+3. Or use ngrok/cloudflare tunnel to expose local backend to internet
