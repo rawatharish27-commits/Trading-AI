@@ -212,6 +212,72 @@ class MemoryCache:
             del self._expiry[key]
             return True
         return False
+    
+    # ========================================
+    # Market Data Cache Methods
+    # ========================================
+    
+    def cache_candles(self, symbol: str, timeframe: str, candles: List[dict], ttl: int = 300) -> bool:
+        """Cache multiple candles"""
+        key = f"candles:{symbol}:{timeframe}"
+        return self.set(key, candles, ttl)
+    
+    def get_cached_candles(self, symbol: str, timeframe: str) -> Optional[List[dict]]:
+        """Get cached candles"""
+        key = f"candles:{symbol}:{timeframe}"
+        return self.get(key)
+    
+    # ========================================
+    # SMC Analysis Cache Methods
+    # ========================================
+    
+    def cache_smc_analysis(self, symbol: str, timeframe: str, analysis: dict, ttl: int = 300) -> bool:
+        """Cache SMC analysis result"""
+        key = f"smc:{symbol}:{timeframe}"
+        return self.set(key, analysis, ttl)
+    
+    def get_cached_smc(self, symbol: str, timeframe: str) -> Optional[dict]:
+        """Get cached SMC analysis"""
+        key = f"smc:{symbol}:{timeframe}"
+        return self.get(key)
+    
+    # ========================================
+    # Signal Cache Methods
+    # ========================================
+    
+    def cache_signal(self, symbol: str, signal: dict, ttl: int = 300) -> bool:
+        """Cache trade signal"""
+        key = f"signal:{symbol}"
+        return self.set(key, signal, ttl)
+    
+    def get_cached_signal(self, symbol: str) -> Optional[dict]:
+        """Get cached signal"""
+        key = f"signal:{symbol}"
+        return self.get(key)
+    
+    # ========================================
+    # Risk State Cache Methods
+    # ========================================
+    
+    def cache_risk_state(self, risk_state: dict, ttl: int = 3600) -> bool:
+        """Cache daily risk state"""
+        return self.set("risk:state", risk_state, ttl)
+    
+    def get_cached_risk_state(self) -> Optional[dict]:
+        """Get cached risk state"""
+        return self.get("risk:state")
+    
+    # ========================================
+    # Watchlist Cache Methods
+    # ========================================
+    
+    def cache_watchlist(self, watchlist: List[str], ttl: int = 3600) -> bool:
+        """Cache watchlist"""
+        return self.set("watchlist", watchlist, ttl)
+    
+    def get_cached_watchlist(self) -> Optional[List[str]]:
+        """Get cached watchlist"""
+        return self.get("watchlist")
 
 
 # Global cache instance

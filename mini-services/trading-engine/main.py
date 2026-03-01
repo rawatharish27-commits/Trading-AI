@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.database import init_db, SessionLocal, SymbolCRUD, CandleCRUD, TradeCRUD, RiskStateCRUD, SystemLogCRUD, is_db_ready, is_using_fallback
+from app.database import init_db, get_db_session, SymbolCRUD, CandleCRUD, TradeCRUD, RiskStateCRUD, SystemLogCRUD, is_db_ready, is_using_fallback
 from app.core.cache import cache, get_cache
 from app.smc import (
     SwingDetector, Candle, StructureDetector, LiquidityDetector,
@@ -290,7 +290,7 @@ async def get_candles(
     limit: int = Query(100, le=500)
 ):
     """Get candles for symbol"""
-    db = SessionLocal()
+    db = get_db_session()
     try:
         symbol_obj = SymbolCRUD.get_or_create(db, symbol)
         
@@ -323,7 +323,7 @@ async def get_candles(
 @app.post("/api/market/candles")
 async def add_candles(request: CandleBulkRequest):
     """Add candles to database"""
-    db = SessionLocal()
+    db = get_db_session()
     try:
         symbol_obj = SymbolCRUD.get_or_create(db, request.symbol)
         
@@ -362,7 +362,7 @@ async def analyze_market(
     htf_bias: str = Query("NEUTRAL")
 ):
     """Run complete SMC analysis"""
-    if SessionLocal is None:
+    if not is_db_ready():
         return {"success": True, "data": {
             "symbol": symbol,
             "timeframe": timeframe,
@@ -378,7 +378,7 @@ async def analyze_market(
             "message": "Database not connected - showing placeholder data"
         }}
     
-    db = SessionLocal()
+    db = get_db_session()
     try:
         cached = get_cache().get_cached_smc(symbol, timeframe)
         if cached:
@@ -539,10 +539,10 @@ async def analyze_market(
 @app.get("/api/smc/mtf/{symbol}")
 async def analyze_mtf(symbol: str):
     """Multi-Timeframe Analysis"""
-    if SessionLocal is None:
+    if not is_db_ready():
         return {"success": True, "data": None, "message": "Database not connected"}
     
-    db = SessionLocal()
+    db = get_db_session()
     try:
         from app.smc.multi_timeframe import MultiTimeframeEngine
         
@@ -608,10 +608,10 @@ from app.database import Trade
 @app.get("/api/trades")
 async def get_trades(status: Optional[str] = None, limit: int = 50):
     """Get trades"""
-    if SessionLocal is None:
+    if not is_db_ready():
         return {"success": True, "data": []}
     
-    db = SessionLocal()
+    db = get_db_session()
     try:
         if status:
             trades = db.query(Trade).filter(Trade.status == status).order_by(
@@ -647,7 +647,7 @@ async def get_trades(status: Optional[str] = None, limit: int = 50):
 @app.post("/api/trades")
 async def create_trade(request: TradeRequest):
     """Create new trade"""
-    db = SessionLocal()
+    db = get_db_session()
     try:
         symbol_obj = SymbolCRUD.get_or_create(db, request.symbol)
         
@@ -679,7 +679,7 @@ async def create_trade(request: TradeRequest):
 @app.put("/api/trades/close")
 async def close_trade(request: CloseTradeRequest):
     """Close trade"""
-    db = SessionLocal()
+    db = get_db_session()
     try:
         trade = db.query(Trade).filter(Trade.id == request.trade_id).first()
         if not trade:
@@ -712,7 +712,7 @@ async def close_trade(request: CloseTradeRequest):
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats():
     """Get dashboard statistics"""
-    if SessionLocal is None:
+    if not is_db_ready():
         return {
             "success": True,
             "data": {
@@ -734,7 +734,7 @@ async def get_dashboard_stats():
             }
         }
     
-    db = SessionLocal()
+    db = get_db_session()
     try:
         stats = TradeCRUD.get_statistics(db)
         open_trades = TradeCRUD.get_open(db)
@@ -801,7 +801,7 @@ async def get_dashboard_stats():
 @app.get("/api/risk/state")
 async def get_risk_state():
     """Get current risk state"""
-    if SessionLocal is None:
+    if not is_db_ready():
         return {
             "success": True,
             "data": {
@@ -825,7 +825,7 @@ async def get_risk_state():
             }
         }
     
-    db = SessionLocal()
+    db = get_db_session()
     try:
         today = date.today()
         state = RiskStateCRUD.get_or_create(db, today, 100000)
@@ -1015,7 +1015,7 @@ async def run_backtest(
     risk_per_trade: float = Query(1.0)
 ):
     """Run backtest for symbol"""
-    db = SessionLocal()
+    db = get_db_session()
     try:
         from app.backtest.simulator import BacktestSimulator
         

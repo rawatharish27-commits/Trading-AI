@@ -77,7 +77,9 @@ import {
   fetchTrades,
   fetchRiskState,
   checkBackendHealth,
-  runBacktest
+  runBacktest,
+  engageKillSwitch,
+  fetchSafetyStatus
 } from '@/lib/api';
 
 // ============================================
@@ -549,6 +551,9 @@ export default function TradingAIDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [equityCurve, setEquityCurve] = useState<any[]>([]);
   const [isPending, startTransitionFn] = useTransition();
+  const [scanning, setScanning] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [scanResults, setScanResults] = useState<{symbol: string; score: number; direction: string}[]>([]);
 
   // Run SMC Analysis - Real API
   const runAnalysis = useCallback(async () => {
@@ -704,6 +709,61 @@ export default function TradingAIDashboard() {
       setLoading(false);
     });
   }, [symbol, timeframe]);
+
+  // Scan Watchlist - Analyze all symbols
+  const scanWatchlist = useCallback(async () => {
+    setScanning(true);
+    setScanResults([]);
+    
+    const results: {symbol: string; score: number; direction: string}[] = [];
+    
+    for (const sym of SYMBOLS) {
+      try {
+        const result = await fetchSMCAnalysis(sym, '5m');
+        if (result.success && result.data) {
+          const data = result.data as SMCAnalysis;
+          if (data.tradeSetup) {
+            results.push({
+              symbol: sym,
+              score: data.tradeSetup.confluenceScore,
+              direction: data.tradeSetup.direction
+            });
+          }
+        }
+      } catch (e) {
+        // Continue with next symbol
+      }
+    }
+    
+    // Sort by score and take top 5
+    results.sort((a, b) => b.score - a.score);
+    setScanResults(results.slice(0, 5));
+    setScanning(false);
+  }, []);
+
+  // Sync Market Data - Refresh all data
+  const syncMarketData = useCallback(async () => {
+    setSyncing(true);
+    await fetchAllData();
+    setSyncing(false);
+  }, [fetchAllData]);
+
+  // Emergency Stop - Kill Switch
+  const handleEmergencyStop = useCallback(async () => {
+    if (confirm('⚠️ EMERGENCY STOP\n\nThis will halt all trading immediately.\n\nAre you sure?')) {
+      try {
+        const result = await engageKillSwitch('WEB', 'Emergency stop from dashboard', true);
+        if (result.success) {
+          alert('🛑 Emergency Stop Engaged!\n\nAll trading has been halted.');
+          fetchAllData();
+        } else {
+          alert('❌ Failed to engage kill switch: ' + (result.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('❌ Error engaging kill switch');
+      }
+    }
+  }, [fetchAllData]);
 
   // Initialize on mount
   useEffect(() => {
@@ -1049,16 +1109,50 @@ export default function TradingAIDashboard() {
                       <CardTitle className="text-white text-lg">Quick Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      <Button className="w-full justify-start bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/20">
-                        <Search className="w-4 h-4 mr-2" />
-                        Scan Watchlist
+                      <Button 
+                        onClick={scanWatchlist}
+                        disabled={scanning}
+                        className="w-full justify-start bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/20"
+                      >
+                        <Search className={cn("w-4 h-4 mr-2", scanning && "animate-pulse")} />
+                        {scanning ? 'Scanning...' : 'Scan Watchlist'}
                       </Button>
-                      <Button className="w-full justify-start bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600">
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Sync Market Data
+                      <Button 
+                        onClick={syncMarketData}
+                        disabled={syncing}
+                        className="w-full justify-start bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600"
+                      >
+                        <RefreshCw className={cn("w-4 h-4 mr-2", syncing && "animate-spin")} />
+                        {syncing ? 'Syncing...' : 'Sync Market Data'}
                       </Button>
+                      
+                      {/* Scan Results */}
+                      {scanResults.length > 0 && (
+                        <div className="mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700">
+                          <p className="text-xs text-slate-400 mb-2">Top Setups Found:</p>
+                          {scanResults.map((r, i) => (
+                            <div key={i} className="flex items-center justify-between py-1">
+                              <span className="text-sm text-white font-medium">{r.symbol}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge className={cn(
+                                  "text-xs",
+                                  r.direction === 'LONG' ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                                )}>
+                                  {r.direction}
+                                </Badge>
+                                <span className="text-xs text-amber-400">{r.score}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
                       <Separator className="my-2 bg-slate-700" />
-                      <Button variant="destructive" className="w-full justify-start">
+                      <Button 
+                        variant="destructive" 
+                        onClick={handleEmergencyStop}
+                        className="w-full justify-start"
+                      >
                         <AlertTriangle className="w-4 h-4 mr-2" />
                         Emergency Stop
                       </Button>

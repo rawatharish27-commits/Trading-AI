@@ -230,6 +230,17 @@ def get_db():
         db.close()
 
 
+def get_db_session():
+    """Get database session directly (not as generator)"""
+    global SessionLocal
+    
+    if SessionLocal is None:
+        if not init_db():
+            return None
+    
+    return SessionLocal()
+
+
 def is_db_ready() -> bool:
     """Check if database is ready"""
     return _db_initialized and engine is not None
@@ -434,7 +445,7 @@ __all__ = [
     'ProbabilityTable', 'SystemLog',
     
     # Connection
-    'engine', 'SessionLocal', 'get_db', 'init_db',
+    'engine', 'SessionLocal', 'get_db', 'get_db_session', 'init_db',
     'is_db_ready', 'is_using_fallback',
     
     # CRUD
