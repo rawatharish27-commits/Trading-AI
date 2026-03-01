@@ -79,7 +79,11 @@ import {
   checkBackendHealth,
   runBacktest,
   engageKillSwitch,
-  fetchSafetyStatus
+  fetchSafetyStatus,
+  fetchLiveQuote,
+  fetchAllLiveQuotes,
+  refreshMarketData,
+  refreshAllMarketData
 } from '@/lib/api';
 
 // ============================================
@@ -741,10 +745,20 @@ export default function TradingAIDashboard() {
     setScanning(false);
   }, []);
 
-  // Sync Market Data - Refresh all data
+  // Sync Market Data - Fetch real data from Yahoo Finance
   const syncMarketData = useCallback(async () => {
     setSyncing(true);
-    await fetchAllData();
+    try {
+      // Refresh all market data from Yahoo Finance
+      const result = await refreshAllMarketData('5m', 1);
+      if (result.success) {
+        // Then refresh the dashboard data
+        await fetchAllData();
+      }
+    } catch (e) {
+      // Fallback to just refreshing display data
+      await fetchAllData();
+    }
     setSyncing(false);
   }, [fetchAllData]);
 

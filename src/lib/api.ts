@@ -399,3 +399,79 @@ export async function checkBackendRoot(): Promise<ApiResponse<any>> {
     return { success: false, error: 'Backend not reachable', source: 'network' };
   }
 }
+
+// ============================================
+// REAL MARKET DATA API
+// ============================================
+
+export async function fetchLiveQuote(symbol: string): Promise<ApiResponse<any>> {
+  try {
+    if (!API_BASE_URL) {
+      return { success: false, error: 'API URL not configured', source: 'config' };
+    }
+    const response = await fetch(`${API_BASE_URL}/api/market/live/${symbol}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}`, source: 'http' };
+    }
+    return await response.json();
+  } catch (error) {
+    return { success: false, error: 'Backend not reachable', source: 'network' };
+  }
+}
+
+export async function fetchAllLiveQuotes(): Promise<ApiResponse<any>> {
+  try {
+    if (!API_BASE_URL) {
+      return { success: false, error: 'API URL not configured', source: 'config' };
+    }
+    const response = await fetch(`${API_BASE_URL}/api/market/live`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}`, source: 'http' };
+    }
+    return await response.json();
+  } catch (error) {
+    return { success: false, error: 'Backend not reachable', source: 'network' };
+  }
+}
+
+export async function refreshMarketData(symbol: string, timeframe: string = '5m', days: number = 7): Promise<ApiResponse<any>> {
+  try {
+    if (!API_BASE_URL) {
+      return { success: false, error: 'API URL not configured', source: 'config' };
+    }
+    const response = await fetch(`${API_BASE_URL}/api/market/refresh/${symbol}?timeframe=${timeframe}&days=${days}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}`, source: 'http' };
+    }
+    return await response.json();
+  } catch (error) {
+    return { success: false, error: 'Backend not reachable', source: 'network' };
+  }
+}
+
+export async function refreshAllMarketData(timeframe: string = '5m', days: number = 7): Promise<ApiResponse<any>> {
+  try {
+    if (!API_BASE_URL) {
+      return { success: false, error: 'API URL not configured', source: 'config' };
+    }
+    const response = await fetch(`${API_BASE_URL}/api/market/refresh-all?timeframe=${timeframe}&days=${days}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}`, source: 'http' };
+    }
+    return await response.json();
+  } catch (error) {
+    return { success: false, error: 'Backend not reachable', source: 'network' };
+  }
+}

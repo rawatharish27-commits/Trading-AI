@@ -26,13 +26,14 @@ import uvicorn
 import sys
 import os
 import asyncio
+import time
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.database import init_db, get_db_session, SymbolCRUD, CandleCRUD, TradeCRUD, RiskStateCRUD, SystemLogCRUD, is_db_ready, is_using_fallback
+from app.database import init_db, get_db_session, SymbolCRUD, CandleCRUD, TradeCRUD, RiskStateCRUD, SystemLogCRUD, is_db_ready, is_using_fallback, Candle as DBCandle, Symbol as DBSymbol
 from app.core.cache import cache, get_cache
 from app.smc import (
     SwingDetector, Candle, StructureDetector, LiquidityDetector,
@@ -1068,6 +1069,169 @@ async def run_backtest(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+# ============================================
+# REAL MARKET DATA API (Yahoo Finance / NSE)
+# ============================================
+
+@app.get("/api/market/live/{symbol}")
+async def get_live_quote(symbol: str):
+    """Get live market quote from Yahoo Finance / NSE"""
+    try:
+        from app.data.market_data import get_live_quote as fetch_quote
+        quote = fetch_quote(symbol)
+        
+        if quote:
+            return {"success": True, "data": quote, "source": "live"}
+        
+        return {"success": False, "error": "Could not fetch quote", "source": "live"}
+    
+    except Exception as e:
+        logger.error(f"Live quote error: {e}")
+        return {"success": False, "error": str(e), "source": "live"}
+
+
+@app.get("/api/market/live")
+async def get_all_live_quotes():
+    """Get live quotes for all tracked symbols"""
+    try:
+        from app.data.market_data import get_all_live_quotes
+        quotes = get_all_live_quotes()
+        
+        return {
+            "success": True, 
+            "data": quotes,
+            "count": len(quotes),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Live quotes error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/market/refresh/{symbol}")
+async def refresh_market_data(
+    symbol: str,
+    timeframe: str = Query("5m"),
+    days: int = Query(7)
+):
+    """Fetch fresh data from Yahoo Finance and store in database"""
+    db = get_db_session()
+    try:
+        from app.data.market_data import get_historical_candles
+        
+        # Fetch from Yahoo Finance
+        candles = get_historical_candles(symbol, timeframe, days)
+        
+        if not candles:
+            return {"success": False, "error": "No data received from market"}
+        
+        symbol_obj = SymbolCRUD.get_or_create(db, symbol)
+        
+        stored = 0
+        for candle in candles:
+            # Check if exists
+            existing = db.query(DBCandle).filter(
+                DBCandle.symbol_id == symbol_obj.id,
+                DBCandle.timeframe == timeframe,
+                DBCandle.timestamp == candle.timestamp
+            ).first()
+            
+            if not existing:
+                db_candle = DBCandle(
+                    symbol_id=symbol_obj.id,
+                    timeframe=timeframe,
+                    timestamp=candle.timestamp,
+                    open=candle.open,
+                    high=candle.high,
+                    low=candle.low,
+                    close=candle.close,
+                    volume=candle.volume
+                )
+                db.add(db_candle)
+                stored += 1
+        
+        db.commit()
+        
+        # Clear cache
+        get_cache().delete(f"candles:{symbol}:{timeframe}")
+        
+        return {
+            "success": True,
+            "symbol": symbol,
+            "fetched": len(candles),
+            "stored": stored,
+            "source": "yahoo_finance"
+        }
+    
+    except Exception as e:
+        logger.error(f"Market refresh error: {e}")
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+
+@app.post("/api/market/refresh-all")
+async def refresh_all_market_data(
+    timeframe: str = Query("5m"),
+    days: int = Query(7)
+):
+    """Refresh market data for all tracked symbols"""
+    from app.data.market_data import YahooFinanceAPI, get_historical_candles
+    
+    symbols = list(YahooFinanceAPI.NSE_SYMBOLS.keys())
+    results = []
+    
+    for symbol in symbols:
+        db = get_db_session()
+        try:
+            candles = get_historical_candles(symbol, timeframe, days)
+            
+            if candles:
+                symbol_obj = SymbolCRUD.get_or_create(db, symbol)
+                
+                stored = 0
+                for candle in candles:
+                    existing = db.query(DBCandle).filter(
+                        DBCandle.symbol_id == symbol_obj.id,
+                        DBCandle.timeframe == timeframe,
+                        DBCandle.timestamp == candle.timestamp
+                    ).first()
+                    
+                    if not existing:
+                        db_candle = DBCandle(
+                            symbol_id=symbol_obj.id,
+                            timeframe=timeframe,
+                            timestamp=candle.timestamp,
+                            open=candle.open,
+                            high=candle.high,
+                            low=candle.low,
+                            close=candle.close,
+                            volume=candle.volume
+                        )
+                        db.add(db_candle)
+                        stored += 1
+                
+                db.commit()
+                results.append({"symbol": symbol, "fetched": len(candles), "stored": stored})
+            else:
+                results.append({"symbol": symbol, "error": "No data"})
+            
+            time.sleep(0.3)  # Rate limiting
+            
+        except Exception as e:
+            results.append({"symbol": symbol, "error": str(e)})
+        finally:
+            db.close()
+    
+    return {
+        "success": True,
+        "results": results,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 # ============================================
