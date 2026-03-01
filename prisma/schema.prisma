@@ -1,0 +1,593 @@
+// Trading AI Agent RAG - Production Database Schema
+// Phase 1: System Foundation
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+// Stock/Symbol Management
+model Symbol {
+  id            String   @id @default(cuid())
+  symbol        String   @unique
+  name          String?
+  exchange      String   @default("NSE")
+  sector        String?
+  isActive      Boolean  @default(true)
+  lotSize       Int      @default(1)
+  tickSize      Float    @default(0.05)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  candles       Candle[]
+  swings        Swing[]
+  structures    Structure[]
+  liquidityZones LiquidityZone[]
+  orderBlocks   OrderBlock[]
+  fvgs          FVG[]
+  trades        Trade[]
+  watchlistItems WatchlistItem[]
+
+  @@index([symbol])
+  @@index([isActive])
+}
+
+// OHLCV Candle Data
+model Candle {
+  id          String   @id @default(cuid())
+  symbolId    String
+  symbol      Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe   String   // 1m, 5m, 15m, 1h, 4h, 1d
+  timestamp   DateTime
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Float
+  createdAt   DateTime @default(now())
+
+  @@unique([symbolId, timeframe, timestamp])
+  @@index([symbolId, timeframe, timestamp])
+}
+
+// ============================================
+// SMC ENGINE - Smart Money Concepts
+// ============================================
+
+// Swing High/Low Points
+model Swing {
+  id          String   @id @default(cuid())
+  symbolId    String
+  symbol      Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe   String
+  timestamp   DateTime
+  type        String   // HIGH, LOW
+  price       Float
+  strength    Int      @default(3) // Number of candles on each side
+  confirmed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([symbolId, timeframe, timestamp])
+}
+
+// Market Structure (BOS, CHoCH, HH, HL, LH, LL)
+model Structure {
+  id              String   @id @default(cuid())
+  symbolId        String
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe       String
+  timestamp       DateTime
+  type            String   // BOS, CHOCH, HH, HL, LH, LL
+  direction       String   // BULLISH, BEARISH
+  price           Float
+  swingId         String?  // Reference to the swing point
+  brokenLevel     Float?   // The level that was broken
+  confirmed       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([symbolId, timeframe, timestamp])
+  @@index([type, direction])
+}
+
+// Liquidity Zones
+model LiquidityZone {
+  id              String   @id @default(cuid())
+  symbolId        String
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe       String
+  type            String   // EQUAL_HIGHS, EQUAL_LOWS, BUY_SIDE, SELL_SIDE
+  priceLevel      Float
+  tolerance       Float    @default(0.1) // Percentage tolerance
+  volume          Float?
+  swept           Boolean  @default(false)
+  sweptAt         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([symbolId, timeframe, swept])
+}
+
+// Order Blocks
+model OrderBlock {
+  id              String   @id @default(cuid())
+  symbolId        String
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe       String
+  type            String   // BULLISH, BEARISH
+  highPrice       Float
+  lowPrice        Float
+  candleIndex     Int      // Index of the OB candle
+  volume          Float
+  mitagated       Boolean  @default(false)
+  mitigatedAt     DateTime?
+  retested        Boolean  @default(false)
+  retestedAt      DateTime?
+  strength        Float    @default(1.0) // Based on impulse move
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([symbolId, timeframe, mitagated])
+}
+
+// Fair Value Gaps
+model FVG {
+  id              String   @id @default(cuid())
+  symbolId        String
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+  timeframe       String
+  type            String   // BULLISH, BEARISH
+  gapTop          Float
+  gapBottom       Float
+  candleIndex     Int
+  filled          Boolean  @default(false)
+  filledAt        DateTime?
+  fillPercentage  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([symbolId, timeframe, filled])
+}
+
+// ============================================
+// CONFLUENCE & SETUPS
+// ============================================
+
+// Trade Setup Candidates
+model TradeSetup {
+  id              String   @id @default(cuid())
+  symbolId        String
+  timeframe       String
+  timestamp       DateTime
+  direction       String   // LONG, SHORT
+  
+  // Confluence Scores
+  liquiditySweep  Boolean  @default(false)
+  liquidityScore  Int      @default(0)
+  bosScore        Int      @default(0)
+  obScore         Int      @default(0)
+  fvgScore        Int      @default(0)
+  volumeScore     Int      @default(0)
+  totalScore      Int      @default(0)
+  
+  // Market Context
+  htfBias         String?  // BULLISH, BEARISH
+  mtfStructure    String?
+  regime          String?  // TRENDING, RANGING, VOLATILE
+  
+  // Entry Details
+  entryPrice      Float?
+  stopLoss        Float?
+  takeProfit      Float?
+  riskReward      Float?
+  
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, EXECUTED, CLOSED
+  aiDecision      String?  // APPROVED, REJECTED
+  aiReasoning     String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, timestamp])
+}
+
+// ============================================
+// TRADING & EXECUTION
+// ============================================
+
+// Executed Trades
+model Trade {
+  id              String   @id @default(cuid())
+  symbolId        String
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+  setupId         String?
+  
+  // Trade Details
+  direction       String   // LONG, SHORT
+  status          String   @default("OPEN") // OPEN, CLOSED, CANCELLED
+  entryPrice      Float
+  exitPrice       Float?
+  quantity        Float
+  stopLoss        Float
+  takeProfit      Float?
+  
+  // P&L
+  pnl             Float?
+  pnlPercent      Float?
+  fees            Float    @default(0)
+  
+  // Risk Management
+  riskPercent     Float    @default(1.0)
+  riskAmount      Float?
+  
+  // Execution Details
+  brokerOrderId   String?
+  executedAt      DateTime @default(now())
+  closedAt        DateTime?
+  
+  // Metadata
+  tags            String?  // JSON array of tags
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  learningRecords LearningRecord[]
+  
+  @@index([status, executedAt])
+  @@index([symbolId])
+}
+
+// ============================================
+// AGENT SYSTEM
+// ============================================
+
+// Agent Decisions Log
+model AgentDecision {
+  id              String   @id @default(cuid())
+  agentType       String   // RESEARCH, STRATEGY, DECISION, RISK, EXECUTION, MONITORING, LEARNING
+  symbol          String?
+  setupId         String?
+  
+  // Input/Output
+  inputJson       String   // JSON string of input data
+  outputJson      String   // JSON string of output/decision
+  decision        String?  // APPROVE, REJECT, BUY, SELL, HOLD
+  
+  // Context
+  confidence      Float?
+  reasoning       String?
+  
+  processingTime  Int?     // milliseconds
+  createdAt       DateTime @default(now())
+
+  @@index([agentType, createdAt])
+}
+
+// ============================================
+// LEARNING SYSTEM
+// ============================================
+
+// Learning Memory - Trade Results
+model LearningRecord {
+  id              String   @id @default(cuid())
+  tradeId         String?
+  trade           Trade?   @relation(fields: [tradeId], references: [id])
+  
+  // Setup Characteristics
+  setupType       String   // OB_RETEST, LIQUIDITY_SWEEP, BOS, etc.
+  trendDirection  String?  // BULLISH, BEARISH
+  regime          String?  // TRENDING, RANGING, VOLATILE
+  volatility      String?  // HIGH, NORMAL, LOW
+  volumeProfile   String?  // HIGH, NORMAL, LOW
+  htfAlignment    Boolean?
+  
+  // Time Context
+  session         String?  // PRE_MARKET, OPENING, MORNING, AFTERNOON, CLOSING
+  dayOfWeek       Int?     // 0-6
+  
+  // Result
+  result          String   // WIN, LOSS, BREAKEVEN
+  pnlPercent      Float?
+  holdTime        Int?     // minutes
+  
+  // Learning Score
+  setupScore      Float?   // Calculated win rate for this setup type
+  confidence      Float?
+  
+  createdAt       DateTime @default(now())
+
+  @@index([setupType, result])
+  @@index([regime, setupType])
+}
+
+// Probability Table - Aggregated Learning
+model ProbabilityTable {
+  id              String   @id @default(cuid())
+  setupType       String
+  regime          String?
+  trendDirection  String?
+  volumeProfile   String?
+  
+  // Statistics
+  totalTrades     Int      @default(0)
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  winRate         Float    @default(0)
+  avgPnl          Float    @default(0)
+  avgHoldTime     Int?
+  
+  updatedAt       DateTime @updatedAt
+
+  @@unique([setupType, regime, trendDirection, volumeProfile])
+}
+
+// ============================================
+// RISK MANAGEMENT
+// ============================================
+
+// Risk Configuration
+model RiskConfig {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  
+  // Position Sizing
+  maxRiskPerTrade     Float    @default(1.0)  // % of capital
+  maxDailyLoss        Float    @default(3.0)  // % of capital
+  maxWeeklyLoss       Float    @default(6.0)  // % of capital
+  maxDrawdown         Float    @default(10.0) // % of capital
+  
+  // Trade Limits
+  maxTradesPerDay     Int      @default(3)
+  maxOpenPositions    Int      @default(3)
+  maxCorrelatedPos    Int      @default(1)
+  
+  // Risk/Reward
+  minRiskReward       Float    @default(1.5)
+  
+  // Time Restrictions
+  tradingStartTime    String?  @default("09:15")
+  tradingEndTime      String?  @default("15:30")
+  noTradeDays         String?  // JSON array of days
+  
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Daily Risk State
+model DailyRiskState {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  
+  // Daily Metrics
+  startingCapital Float
+  currentCapital  Float
+  dailyPnL        Float    @default(0)
+  dailyLoss       Float    @default(0)
+  dailyTrades     Int      @default(0)
+  openPositions   Int      @default(0)
+  
+  // Limits Reached
+  dailyLossLimit  Boolean  @default(false)
+  tradeLimitHit   Boolean  @default(false)
+  tradingHalted   Boolean  @default(false)
+  haltReason      String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ============================================
+// WATCHLIST & SCANNING
+// ============================================
+
+model Watchlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       WatchlistItem[]
+
+  @@index([isDefault])
+}
+
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  watchlistId String
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id])
+  symbolId    String
+  symbol      Symbol   @relation(fields: [symbolId], references: [id])
+  
+  // Scan Results
+  scanScore   Int      @default(0)
+  scanReason  String?
+  lastScanned DateTime?
+  
+  addedAt     DateTime @default(now())
+
+  @@unique([watchlistId, symbolId])
+}
+
+// ============================================
+// SYSTEM LOGS & MONITORING
+// ============================================
+
+model SystemLog {
+  id          String   @id @default(cuid())
+  level       String   // INFO, WARNING, ERROR, CRITICAL
+  category    String   // DATA, SMC, AGENT, EXECUTION, RISK, SYSTEM
+  message     String
+  details     String?  // JSON string for additional data
+  symbol      String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([level, category, createdAt])
+  @@index([createdAt])
+}
+
+model SystemMetric {
+  id          String   @id @default(cuid())
+  name        String
+  value       Float
+  unit        String?
+  tags        String?  // JSON string
+  
+  recordedAt  DateTime @default(now())
+
+  @@index([name, recordedAt])
+}
+
+// ============================================
+// BACKTESTING
+// ============================================
+
+model BacktestRun {
+  id              String   @id @default(cuid())
+  name            String
+  symbol          String
+  timeframe       String
+  
+  // Date Range
+  startDate       DateTime
+  endDate         DateTime
+  
+  // Configuration
+  configJson      String   // JSON of backtest parameters
+  
+  // Results
+  totalTrades     Int      @default(0)
+  winningTrades   Int      @default(0)
+  losingTrades    Int      @default(0)
+  winRate         Float    @default(0)
+  totalPnL        Float    @default(0)
+  maxDrawdown     Float    @default(0)
+  expectancy      Float    @default(0)
+  profitFactor    Float    @default(0)
+  sharpeRatio     Float?
+  
+  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([status])
+}
+
+model BacktestTrade {
+  id              String   @id @default(cuid())
+  backtestRunId   String
+  
+  // Trade Details
+  symbol          String
+  direction       String
+  entryTime       DateTime
+  exitTime        DateTime?
+  entryPrice      Float
+  exitPrice       Float?
+  stopLoss        Float
+  takeProfit      Float?
+  
+  // Results
+  pnl             Float?
+  result          String?  // WIN, LOSS, BREAKEVEN
+  holdTime        Int?     // minutes
+  
+  // Setup Info
+  setupType       String?
+  setupScore      Float?
+  confluenceJson  String?  // JSON of confluence factors
+  
+  createdAt       DateTime @default(now())
+
+  @@index([backtestRunId])
+}
+
+// ============================================
+// MARKET REGIME
+// ============================================
+
+model MarketRegime {
+  id              String   @id @default(cuid())
+  symbol          String
+  timeframe       String
+  timestamp       DateTime
+  
+  regime          String   // TRENDING, RANGING, VOLATILE
+  trendStrength   Float    // 0-100
+  volatility      Float    // ATR-based
+  atr             Float
+  emaSpread       Float?   // EMA50-EMA200 distance
+  
+  // Regime Details
+  avgRange        Float?
+  rangeRatio      Float?   // Current range vs average
+  
+  createdAt       DateTime @default(now())
+
+  @@unique([symbol, timeframe, timestamp])
+  @@index([symbol, timeframe, timestamp])
+}
+
+// ============================================
+// BROKER INTEGRATION
+// ============================================
+
+model BrokerConnection {
+  id              String   @id @default(cuid())
+  broker          String   // ANGEL_ONE, ZERODHA, etc.
+  userId          String
+  apiKey          String?
+  apiSecret       String?  // Encrypted
+  accessToken     String?  // Encrypted
+  refreshToken    String?  // Encrypted
+  tokenExpiry     DateTime?
+  
+  isActive        Boolean  @default(true)
+  lastConnected   DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([broker, userId])
+}
+
+model BrokerOrder {
+  id              String   @id @default(cuid())
+  brokerConnId    String
+  
+  // Order Details
+  brokerOrderId   String
+  symbol          String
+  orderType       String   // MARKET, LIMIT, SL, SL-M
+  side            String   // BUY, SELL
+  quantity        Float
+  price           Float?
+  triggerPrice    Float?
+  
+  // Status
+  status          String   // PENDING, PLACED, EXECUTED, CANCELLED, REJECTED
+  filledQuantity  Float    @default(0)
+  avgPrice        Float?
+  
+  // Response
+  brokerResponse  String?  // JSON of broker response
+  
+  placedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brokerConnId, status])
+}
