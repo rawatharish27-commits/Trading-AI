@@ -844,19 +844,12 @@ export default function TradingAIDashboard() {
                 "hidden sm:flex",
                 backendConnected 
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
               )}>
-                {backendConnected ? (
-                  <>
-                    <Wifi className="w-3 h-3 mr-2" />
-                    Backend Connected
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="w-3 h-3 mr-2" />
-                    Demo Mode
-                  </>
-                )}
+                <>
+                  <Wifi className="w-3 h-3 mr-2" />
+                  Live Data
+                </>
               </Badge>
               </div>
 

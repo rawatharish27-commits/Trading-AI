@@ -1072,18 +1072,20 @@ async def run_backtest(
 
 
 # ============================================
-# REAL MARKET DATA API (Yahoo Finance / NSE)
+# REAL MARKET DATA API (Angel One / Yahoo Finance)
 # ============================================
 
 @app.get("/api/market/live/{symbol}")
 async def get_live_quote(symbol: str):
-    """Get live market quote from Yahoo Finance / NSE"""
+    """Get live market quote from Angel One / Yahoo Finance"""
     try:
-        from app.data.market_data import get_live_quote as fetch_quote
-        quote = fetch_quote(symbol)
+        # Try Angel One first
+        from app.data.angel_one_data import get_real_time_quote
+        quote = get_real_time_quote(symbol)
         
         if quote:
-            return {"success": True, "data": quote, "source": "live"}
+            source = quote.get('source', 'angel_one')
+            return {"success": True, "data": quote, "source": source}
         
         return {"success": False, "error": "Could not fetch quote", "source": "live"}
     
@@ -1096,13 +1098,29 @@ async def get_live_quote(symbol: str):
 async def get_all_live_quotes():
     """Get live quotes for all tracked symbols"""
     try:
-        from app.data.market_data import get_all_live_quotes
-        quotes = get_all_live_quotes()
+        from app.data.angel_one_data import get_angel_one_fetcher, AngelOneDataFetcher
+        from app.data.market_data import get_all_live_quotes as yahoo_quotes
         
+        # Try Angel One first
+        ao = get_angel_one_fetcher()
+        if ao.can_connect():
+            quotes = ao.get_all_quotes(list(AngelOneDataFetcher.SYMBOL_TOKENS.keys())[:10])
+            if quotes:
+                return {
+                    "success": True, 
+                    "data": quotes,
+                    "count": len(quotes),
+                    "source": "angel_one",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+        
+        # Fallback to Yahoo Finance
+        quotes = yahoo_quotes()
         return {
             "success": True, 
             "data": quotes,
             "count": len(quotes),
+            "source": "yahoo_finance",
             "timestamp": datetime.utcnow().isoformat()
         }
     
@@ -1117,13 +1135,14 @@ async def refresh_market_data(
     timeframe: str = Query("5m"),
     days: int = Query(7)
 ):
-    """Fetch fresh data from Yahoo Finance and store in database"""
+    """Fetch fresh data from Angel One / Yahoo Finance and store in database"""
     db = get_db_session()
     try:
-        from app.data.market_data import get_historical_candles
+        # Try Angel One first, then Yahoo Finance
+        from app.data.angel_one_data import get_real_historical_data
         
-        # Fetch from Yahoo Finance
-        candles = get_historical_candles(symbol, timeframe, days)
+        # Fetch from Angel One / Yahoo Finance
+        candles = get_real_historical_data(symbol, timeframe, days)
         
         if not candles:
             return {"success": False, "error": "No data received from market"}
@@ -1163,7 +1182,7 @@ async def refresh_market_data(
             "symbol": symbol,
             "fetched": len(candles),
             "stored": stored,
-            "source": "yahoo_finance"
+            "source": "real_market_data"
         }
     
     except Exception as e:
@@ -1179,17 +1198,18 @@ async def refresh_all_market_data(
     timeframe: str = Query("5m"),
     days: int = Query(7)
 ):
-    """Refresh market data for all tracked symbols"""
-    from app.data.market_data import YahooFinanceAPI, get_historical_candles
+    """Refresh market data for all tracked symbols from Angel One / Yahoo Finance"""
+    from app.data.angel_one_data import fetch_all_symbols_data, AngelOneDataFetcher
     
-    symbols = list(YahooFinanceAPI.NSE_SYMBOLS.keys())
+    symbols = list(AngelOneDataFetcher.SYMBOL_TOKENS.keys())
     results = []
     
-    for symbol in symbols:
+    # Fetch data for all symbols
+    all_candles = fetch_all_symbols_data(symbols, timeframe, days)
+    
+    for symbol, candles in all_candles.items():
         db = get_db_session()
         try:
-            candles = get_historical_candles(symbol, timeframe, days)
-            
             if candles:
                 symbol_obj = SymbolCRUD.get_or_create(db, symbol)
                 
@@ -1220,8 +1240,6 @@ async def refresh_all_market_data(
             else:
                 results.append({"symbol": symbol, "error": "No data"})
             
-            time.sleep(0.3)  # Rate limiting
-            
         except Exception as e:
             results.append({"symbol": symbol, "error": str(e)})
         finally:
@@ -1230,6 +1248,185 @@ async def refresh_all_market_data(
     return {
         "success": True,
         "results": results,
+        "source": "real_market_data",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/api/market/nifty500/status")
+async def get_nifty500_status():
+    """Get Nifty 500 symbols status and count"""
+    from app.data.angel_one_data import AngelOneDataFetcher
+    
+    symbols = AngelOneDataFetcher.get_all_symbols()
+    count = AngelOneDataFetcher.get_symbols_count()
+    
+    return {
+        "success": True,
+        "data": {
+            "total_symbols": count,
+            "symbols": symbols[:50],  # Return first 50 for preview
+            "has_nifty500": count >= 500
+        }
+    }
+
+
+@app.post("/api/market/nifty500/fetch-all")
+async def fetch_all_nifty500_data(
+    timeframe: str = Query("5m"),
+    days: int = Query(1),
+    batch_size: int = Query(50)
+):
+    """
+    Fetch historical data for ALL Nifty 500 stocks
+    
+    This endpoint fetches data in batches to avoid rate limits.
+    Default batch size is 50 symbols at a time.
+    """
+    from app.data.angel_one_data import fetch_all_symbols_data, AngelOneDataFetcher
+    from app.data.market_data import get_historical_candles as yahoo_historical
+    
+    symbols = AngelOneDataFetcher.get_all_symbols()
+    total_symbols = len(symbols)
+    results = []
+    fetched_count = 0
+    failed_count = 0
+    
+    logger.info(f"🚀 Starting bulk fetch for {total_symbols} symbols...")
+    
+    # Process in batches
+    for i in range(0, total_symbols, batch_size):
+        batch = symbols[i:i + batch_size]
+        logger.info(f"📦 Processing batch {i//batch_size + 1}/{(total_symbols + batch_size - 1)//batch_size}")
+        
+        for symbol in batch:
+            db = get_db_session()
+            try:
+                # Try Angel One first, then Yahoo Finance
+                from app.data.angel_one_data import get_real_historical_data
+                candles = get_real_historical_data(symbol, timeframe, days)
+                
+                if candles:
+                    symbol_obj = SymbolCRUD.get_or_create(db, symbol)
+                    
+                    stored = 0
+                    for candle in candles:
+                        existing = db.query(DBCandle).filter(
+                            DBCandle.symbol_id == symbol_obj.id,
+                            DBCandle.timeframe == timeframe,
+                            DBCandle.timestamp == candle.timestamp
+                        ).first()
+                        
+                        if not existing:
+                            db_candle = DBCandle(
+                                symbol_id=symbol_obj.id,
+                                timeframe=timeframe,
+                                timestamp=candle.timestamp,
+                                open=candle.open,
+                                high=candle.high,
+                                low=candle.low,
+                                close=candle.close,
+                                volume=candle.volume
+                            )
+                            db.add(db_candle)
+                            stored += 1
+                    
+                    db.commit()
+                    results.append({
+                        "symbol": symbol, 
+                        "fetched": len(candles), 
+                        "stored": stored,
+                        "status": "success"
+                    })
+                    fetched_count += 1
+                else:
+                    results.append({
+                        "symbol": symbol, 
+                        "error": "No data available",
+                        "status": "failed"
+                    })
+                    failed_count += 1
+                
+                # Rate limiting
+                time.sleep(0.1)
+                
+            except Exception as e:
+                logger.error(f"Error fetching {symbol}: {e}")
+                results.append({
+                    "symbol": symbol, 
+                    "error": str(e)[:100],
+                    "status": "error"
+                })
+                failed_count += 1
+            finally:
+                db.close()
+        
+        # Longer pause between batches
+        if i + batch_size < total_symbols:
+            logger.info(f"⏳ Pausing 2s before next batch...")
+            time.sleep(2)
+    
+    logger.info(f"✅ Bulk fetch complete: {fetched_count} succeeded, {failed_count} failed")
+    
+    return {
+        "success": True,
+        "summary": {
+            "total_symbols": total_symbols,
+            "fetched_successfully": fetched_count,
+            "failed": failed_count,
+            "success_rate": round((fetched_count / total_symbols) * 100, 2) if total_symbols > 0 else 0
+        },
+        "results": results,
+        "source": "real_market_data",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.post("/api/market/nifty500/live-quotes")
+async def fetch_all_nifty500_live_quotes():
+    """Fetch live quotes for ALL Nifty 500 stocks"""
+    from app.data.angel_one_data import AngelOneDataFetcher, get_angel_one_fetcher
+    from app.data.market_data import get_live_quote as yahoo_quote
+    
+    symbols = AngelOneDataFetcher.get_all_symbols()
+    quotes = {}
+    success_count = 0
+    failed_count = 0
+    
+    # Try Angel One first
+    ao = get_angel_one_fetcher()
+    use_angel_one = ao.can_connect()
+    
+    logger.info(f"🚀 Fetching live quotes for {len(symbols)} symbols...")
+    
+    for symbol in symbols:
+        try:
+            if use_angel_one:
+                quote = ao.get_quote(symbol)
+            else:
+                quote = yahoo_quote(symbol)
+            
+            if quote and quote.get('ltp'):
+                quotes[symbol] = quote
+                success_count += 1
+            else:
+                failed_count += 1
+            
+            # Rate limiting
+            time.sleep(0.05)
+            
+        except Exception as e:
+            failed_count += 1
+    
+    return {
+        "success": True,
+        "summary": {
+            "total_symbols": len(symbols),
+            "quotes_fetched": success_count,
+            "failed": failed_count
+        },
+        "data": quotes,
+        "source": "angel_one" if use_angel_one else "yahoo_finance",
         "timestamp": datetime.utcnow().isoformat()
     }
 

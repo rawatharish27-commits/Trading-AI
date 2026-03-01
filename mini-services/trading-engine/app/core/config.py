@@ -132,6 +132,14 @@ class Settings(BaseSettings):
         extra = "ignore"  # Ignore extra env vars from parent environment
 
 
+# Override DATABASE_URL if it's in wrong format
+import os
+_db_url = os.environ.get('DATABASE_URL', '')
+if _db_url.startswith('file:'):
+    # Fix incorrect format
+    os.environ['DATABASE_URL'] = 'sqlite:////tmp/trading_ai.db'
+
+
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
