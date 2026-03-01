@@ -7,6 +7,16 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  
+  // API Rewrites - Proxy all /api requests to backend
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:3030/api/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

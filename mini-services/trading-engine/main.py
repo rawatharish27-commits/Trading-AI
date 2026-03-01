@@ -1096,31 +1096,36 @@ async def get_live_quote(symbol: str):
 
 @app.get("/api/market/live")
 async def get_all_live_quotes():
-    """Get live quotes for all tracked symbols"""
+    """Get live quotes for all tracked symbols - REAL TIME"""
     try:
         from app.data.angel_one_data import get_angel_one_fetcher, AngelOneDataFetcher
-        from app.data.market_data import get_all_live_quotes as yahoo_quotes
+        from app.data.market_data import get_live_quote as yahoo_quote
+        
+        symbols = list(AngelOneDataFetcher.SYMBOL_TOKENS.keys())[:20]  # Top 20 symbols
+        quotes = {}
         
         # Try Angel One first
         ao = get_angel_one_fetcher()
-        if ao.can_connect():
-            quotes = ao.get_all_quotes(list(AngelOneDataFetcher.SYMBOL_TOKENS.keys())[:10])
-            if quotes:
-                return {
-                    "success": True, 
-                    "data": quotes,
-                    "count": len(quotes),
-                    "source": "angel_one",
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+        use_angel_one = ao.can_connect()
         
-        # Fallback to Yahoo Finance
-        quotes = yahoo_quotes()
+        for symbol in symbols:
+            try:
+                if use_angel_one:
+                    quote = ao.get_quote(symbol)
+                else:
+                    quote = yahoo_quote(symbol)
+                
+                if quote and quote.get('ltp'):
+                    quotes[symbol] = quote
+            except:
+                pass
+            time.sleep(0.05)  # Rate limiting
+        
         return {
             "success": True, 
             "data": quotes,
             "count": len(quotes),
-            "source": "yahoo_finance",
+            "source": "angel_one" if use_angel_one else "yahoo_finance",
             "timestamp": datetime.utcnow().isoformat()
         }
     
