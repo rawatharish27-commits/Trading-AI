@@ -416,3 +416,228 @@ def fetch_all_symbols_data(symbols: List[str] = None,
         results = yahoo_results
     
     return results
+
+
+# ============================================
+# ANGEL ONE PROFILE / HOLDINGS / POSITIONS / FUNDS
+# ============================================
+
+def get_profile() -> Optional[Dict[str, Any]]:
+    """Get user profile from Angel One"""
+    ao = get_angel_one_fetcher()
+    
+    if not ao.can_connect():
+        logger.warning("Angel One credentials not configured")
+        return None
+    
+    try:
+        # Login if not connected
+        if not ao.is_connected:
+            login_result = ao.login()
+            if not login_result.get('status'):
+                return None
+        
+        # Get profile using SmartAPI
+        profile_data = ao.smart_api.getProfile(ao.smart_api.refresh_token)
+        
+        if profile_data.get('status') and profile_data.get('data'):
+            data = profile_data['data']
+            return {
+                "client_code": data.get('clientcode', ''),
+                "name": data.get('name', ''),
+                "email": data.get('email', ''),
+                "phone": data.get('mobileno', ''),
+                "broker_name": "Angel One",
+                "exchanges": data.get('exchanges', []),
+                "products": data.get('products', []),
+                "client_type": data.get('clienttype', ''),
+                "last_login": ao.last_login.isoformat() if ao.last_login else None,
+                "source": "angel_one"
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting profile: {e}")
+        return None
+
+
+def get_holdings() -> Optional[List[Dict[str, Any]]]:
+    """Get user holdings from Angel One"""
+    ao = get_angel_one_fetcher()
+    
+    if not ao.can_connect():
+        logger.warning("Angel One credentials not configured")
+        return None
+    
+    try:
+        # Login if not connected
+        if not ao.is_connected:
+            login_result = ao.login()
+            if not login_result.get('status'):
+                return None
+        
+        # Get holdings using SmartAPI
+        holdings_data = ao.smart_api.holding()
+        
+        if holdings_data.get('status') and holdings_data.get('data'):
+            holdings = []
+            for h in holdings_data['data']:
+                holdings.append({
+                    "symbol": h.get('symbol', ''),
+                    "exchange": h.get('exchange', ''),
+                    "quantity": int(h.get('quantity', 0)),
+                    "available_quantity": int(h.get('availablequantity', 0)),
+                    "average_price": float(h.get('averageprice', 0)),
+                    "ltp": float(h.get('ltp', 0)),
+                    "pnl": float(h.get('pnl', 0)),
+                    "pnl_percent": float(h.get('pnlpercentage', 0)),
+                    "product": h.get('producttype', ''),
+                    "source": "angel_one"
+                })
+            
+            return holdings
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error getting holdings: {e}")
+        return None
+
+
+def get_positions() -> Optional[Dict[str, Any]]:
+    """Get user positions from Angel One (Net and Day)"""
+    ao = get_angel_one_fetcher()
+    
+    if not ao.can_connect():
+        logger.warning("Angel One credentials not configured")
+        return None
+    
+    try:
+        # Login if not connected
+        if not ao.is_connected:
+            login_result = ao.login()
+            if not login_result.get('status'):
+                return None
+        
+        # Get positions using SmartAPI
+        positions_data = ao.smart_api.position()
+        
+        net_positions = []
+        day_positions = []
+        
+        if positions_data.get('status') and positions_data.get('data'):
+            for p in positions_data['data']:
+                position = {
+                    "symbol": p.get('symbol', ''),
+                    "exchange": p.get('exchange', ''),
+                    "trading_symbol": p.get('tradingsymbol', ''),
+                    "quantity": int(p.get('quantity', 0)),
+                    "average_price": float(p.get('averageprice', 0)),
+                    "ltp": float(p.get('ltp', 0)),
+                    "pnl": float(p.get('pnl', 0)),
+                    "product": p.get('producttype', ''),
+                    "type": p.get('type', ''),  # BUY or SELL
+                    "source": "angel_one"
+                }
+                
+                if p.get('producttype') == 'CNC':
+                    net_positions.append(position)
+                else:
+                    day_positions.append(position)
+        
+        return {
+            "net_positions": net_positions,
+            "day_positions": day_positions,
+            "total_positions": len(net_positions) + len(day_positions),
+            "source": "angel_one"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting positions: {e}")
+        return None
+
+
+def get_funds() -> Optional[Dict[str, Any]]:
+    """Get user funds/RMS from Angel One"""
+    ao = get_angel_one_fetcher()
+    
+    if not ao.can_connect():
+        logger.warning("Angel One credentials not configured")
+        return None
+    
+    try:
+        # Login if not connected
+        if not ao.is_connected:
+            login_result = ao.login()
+            if not login_result.get('status'):
+                return None
+        
+        # Get RMS (Risk Management System) data
+        rms_data = ao.smart_api.rmsLimit()
+        
+        if rms_data.get('status') and rms_data.get('data'):
+            data = rms_data['data']
+            return {
+                "available_cash": float(data.get('availablecash', 0)),
+                "available_intraday_payin": float(data.get('availableintradaypayin', 0)),
+                "available_limit_margin": float(data.get('availablelimitmargin', 0)),
+                "margin_used": float(data.get('marginused', 0)),
+                "margin_available": float(data.get('marginavailable', 0)),
+                "exposure_margin": float(data.get('exposuremargin', 0)),
+                "span_margin": float(data.get('spanmargin', 0)),
+                "total_balance": float(data.get('net', 0)),
+                "source": "angel_one"
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting funds: {e}")
+        return None
+
+
+def get_order_book() -> Optional[List[Dict[str, Any]]]:
+    """Get order book from Angel One"""
+    ao = get_angel_one_fetcher()
+    
+    if not ao.can_connect():
+        logger.warning("Angel One credentials not configured")
+        return None
+    
+    try:
+        # Login if not connected
+        if not ao.is_connected:
+            login_result = ao.login()
+            if not login_result.get('status'):
+                return None
+        
+        # Get order book
+        order_data = ao.smart_api.orderBook()
+        
+        if order_data.get('status') and order_data.get('data'):
+            orders = []
+            for o in order_data['data']:
+                orders.append({
+                    "order_id": o.get('orderid', ''),
+                    "symbol": o.get('tradingsymbol', ''),
+                    "exchange": o.get('exchange', ''),
+                    "type": o.get('transactiontype', ''),
+                    "order_type": o.get('ordertype', ''),
+                    "quantity": int(o.get('quantity', 0)),
+                    "filled_quantity": int(o.get('filledquantity', 0)),
+                    "price": float(o.get('price', 0)),
+                    "average_price": float(o.get('averageprice', 0)),
+                    "status": o.get('status', ''),
+                    "product": o.get('producttype', ''),
+                    "order_time": o.get('updatetime', ''),
+                    "source": "angel_one"
+                })
+            
+            return orders
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error getting order book: {e}")
+        return None

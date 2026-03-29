@@ -1440,6 +1440,270 @@ async def fetch_all_nifty500_live_quotes():
 
 
 # ============================================
+# ANGEL ONE PROFILE API
+# ============================================
+
+@app.get("/api/broker/profile")
+async def get_broker_profile():
+    """Get Angel One user profile"""
+    try:
+        from app.data.angel_one_data import get_profile, get_angel_one_fetcher
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured",
+                "hint": "Add ANGEL_ONE_API_KEY, ANGEL_ONE_CLIENT_CODE, ANGEL_ONE_PASSWORD, ANGEL_ONE_TOTP_SECRET to environment"
+            }
+        
+        profile = get_profile()
+        
+        if profile:
+            return {"success": True, "data": profile, "source": "angel_one"}
+        
+        return {"success": False, "error": "Could not fetch profile"}
+    
+    except Exception as e:
+        logger.error(f"Profile fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/holdings")
+async def get_broker_holdings():
+    """Get Angel One holdings"""
+    try:
+        from app.data.angel_one_data import get_holdings, get_angel_one_fetcher
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured"
+            }
+        
+        holdings = get_holdings()
+        
+        if holdings is not None:
+            return {
+                "success": True, 
+                "data": holdings, 
+                "count": len(holdings),
+                "source": "angel_one"
+            }
+        
+        return {"success": False, "error": "Could not fetch holdings"}
+    
+    except Exception as e:
+        logger.error(f"Holdings fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/positions")
+async def get_broker_positions():
+    """Get Angel One positions (Net and Day)"""
+    try:
+        from app.data.angel_one_data import get_positions, get_angel_one_fetcher
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured"
+            }
+        
+        positions = get_positions()
+        
+        if positions:
+            return {"success": True, "data": positions, "source": "angel_one"}
+        
+        return {"success": False, "error": "Could not fetch positions"}
+    
+    except Exception as e:
+        logger.error(f"Positions fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/funds")
+async def get_broker_funds():
+    """Get Angel One funds/margin"""
+    try:
+        from app.data.angel_one_data import get_funds, get_angel_one_fetcher
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured"
+            }
+        
+        funds = get_funds()
+        
+        if funds:
+            return {"success": True, "data": funds, "source": "angel_one"}
+        
+        return {"success": False, "error": "Could not fetch funds"}
+    
+    except Exception as e:
+        logger.error(f"Funds fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/orders")
+async def get_broker_orders():
+    """Get Angel One order book"""
+    try:
+        from app.data.angel_one_data import get_order_book, get_angel_one_fetcher
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured"
+            }
+        
+        orders = get_order_book()
+        
+        if orders is not None:
+            return {
+                "success": True, 
+                "data": orders, 
+                "count": len(orders),
+                "source": "angel_one"
+            }
+        
+        return {"success": False, "error": "Could not fetch orders"}
+    
+    except Exception as e:
+        logger.error(f"Orders fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/summary")
+async def get_broker_summary():
+    """Get complete broker summary (profile + holdings + positions + funds)"""
+    try:
+        from app.data.angel_one_data import (
+            get_profile, get_holdings, get_positions, get_funds, 
+            get_order_book, get_angel_one_fetcher
+        )
+        
+        # Check if credentials are configured
+        ao = get_angel_one_fetcher()
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured",
+                "hint": "Add ANGEL_ONE_API_KEY, ANGEL_ONE_CLIENT_CODE, ANGEL_ONE_PASSWORD, ANGEL_ONE_TOTP_SECRET to environment"
+            }
+        
+        # Fetch all data
+        profile = get_profile()
+        holdings = get_holdings()
+        positions = get_positions()
+        funds = get_funds()
+        orders = get_order_book()
+        
+        # Calculate summary
+        total_holdings_value = sum(h.get('ltp', 0) * h.get('quantity', 0) for h in (holdings or []))
+        total_holdings_pnl = sum(h.get('pnl', 0) for h in (holdings or []))
+        
+        return {
+            "success": True,
+            "data": {
+                "profile": profile,
+                "holdings": {
+                    "list": holdings or [],
+                    "count": len(holdings) if holdings else 0,
+                    "total_value": total_holdings_value,
+                    "total_pnl": total_holdings_pnl
+                },
+                "positions": positions,
+                "funds": funds,
+                "orders": {
+                    "list": orders or [],
+                    "count": len(orders) if orders else 0
+                },
+                "summary": {
+                    "available_cash": funds.get('available_cash', 0) if funds else 0,
+                    "total_balance": funds.get('total_balance', 0) if funds else 0,
+                    "holdings_count": len(holdings) if holdings else 0,
+                    "positions_count": positions.get('total_positions', 0) if positions else 0,
+                    "open_orders": len([o for o in (orders or []) if o.get('status') in ['open', 'pending']])
+                }
+            },
+            "source": "angel_one",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Broker summary error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/broker/status")
+async def get_broker_status():
+    """Check Angel One connection status"""
+    try:
+        from app.data.angel_one_data import get_angel_one_fetcher
+        
+        ao = get_angel_one_fetcher()
+        
+        return {
+            "success": True,
+            "data": {
+                "configured": ao.can_connect(),
+                "connected": ao.is_connected,
+                "client_code": ao.client_code if ao.can_connect() else None,
+                "last_login": ao.last_login.isoformat() if ao.last_login else None,
+                "message": "Connected to Angel One" if ao.is_connected else ("Credentials configured, not connected" if ao.can_connect() else "Credentials not configured")
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Broker status error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/broker/connect")
+async def connect_broker():
+    """Connect/login to Angel One"""
+    try:
+        from app.data.angel_one_data import get_angel_one_fetcher
+        
+        ao = get_angel_one_fetcher()
+        
+        if not ao.can_connect():
+            return {
+                "success": False, 
+                "error": "Angel One credentials not configured"
+            }
+        
+        login_result = ao.login()
+        
+        if login_result.get('status'):
+            return {
+                "success": True, 
+                "data": {
+                    "connected": True,
+                    "client_code": ao.client_code,
+                    "message": "Successfully connected to Angel One"
+                }
+            }
+        
+        return {"success": False, "error": login_result.get('message', 'Login failed')}
+    
+    except Exception as e:
+        logger.error(f"Broker connect error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
 # MAIN
 # ============================================
 
