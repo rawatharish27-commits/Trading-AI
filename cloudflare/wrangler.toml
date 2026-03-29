@@ -1,0 +1,46 @@
+# Cloudflare Worker Configuration
+# Trading AI API - Edge Functions
+
+name = "trading-ai-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Account ID (get from Cloudflare dashboard)
+# account_id = "your-account-id"
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Production settings
+[env.production]
+name = "trading-ai-api"
+route = "api.yourdomain.com/*"
+
+# KV Namespace for caching (optional)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "your-kv-namespace-id"
+
+# Environment variables (set via dashboard or wrangler secret)
+# [vars]
+# PYTHON_BACKEND = "https://trading-ai-backend.onrender.com"
+
+# Limits
+[limits]
+cpu_ms = 50
+
+# Routes
+[[routes]]
+pattern = "api.tradingai.pages.dev/*"
+custom_domain = true
+
+# Build settings
+[build]
+command = ""
+
+# Logging
+[observability]
+enabled = true

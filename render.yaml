@@ -1,0 +1,70 @@
+# Render.yaml - Auto-deployment configuration
+# This file configures automatic deployment to Render
+
+services:
+  # ============================================
+  # PYTHON BACKEND (FastAPI)
+  # ============================================
+  - type: web
+    name: trading-ai-backend
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: mini-services/trading-engine
+    
+    # Build & Start
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    
+    # Health Check
+    healthCheckPath: /health
+    
+    # Auto-deploy
+    autoDeploy: true
+    
+    # Environment Variables
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trading-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trading-ai-redis
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: OPENAI_BASE_URL
+        value: "https://api.deepseek.com/v1"
+      - key: PAPER_TRADING
+        value: "true"
+      - key: DEBUG
+        value: "false"
+      - key: MAX_RISK_PER_TRADE
+        value: "1.0"
+      - key: MAX_DAILY_LOSS
+        value: "3.0"
+      - key: MAX_TRADES_PER_DAY
+        value: "3"
+
+# ============================================
+# REDIS CACHE
+# ============================================
+  - type: redis
+    name: trading-ai-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+# ============================================
+# DATABASE (PostgreSQL)
+# Using Neon instead (better free tier)
+# ============================================
+databases:
+  - name: trading-ai-db
+    region: oregon
+    plan: free
