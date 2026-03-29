@@ -4,11 +4,5 @@
   "buildCommand": "bun run build",
   "devCommand": "bun run dev",
   "installCommand": "bun install",
-  "regions": ["iad1"],
-  "env": {
-    "NEXT_PUBLIC_API_URL": {
-      "description": "Python Backend API URL",
-      "value": "http://localhost:3030"
-    }
-  }
+  "regions": ["iad1"]
 }
