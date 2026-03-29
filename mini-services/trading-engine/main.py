@@ -17,19 +17,29 @@ Complete Features:
 Author: Trading AI Agent
 """
 
+# Load environment variables FIRST before any other imports
+import os
+import sys
+from pathlib import Path
+
+# Get the directory of this file
+BASE_DIR = Path(__file__).resolve().parent
+
+# Load .env from the same directory as main.py
+from dotenv import load_dotenv
+load_dotenv(BASE_DIR / ".env")
+
 from fastapi import FastAPI, HTTPException, Query, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 import uvicorn
-import sys
-import os
 import asyncio
 import time
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(BASE_DIR.parent))
 
 from app.core.config import settings
 from app.core.logger import logger
