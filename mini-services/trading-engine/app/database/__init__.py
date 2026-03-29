@@ -130,20 +130,32 @@ class SystemLog(Base):
 engine = None
 SessionLocal = None
 _db_initialized = False
+_using_fallback = False
 
 
 def init_db():
     """Initialize Database (PostgreSQL or SQLite) with retry logic"""
-    global engine, SessionLocal, _db_initialized
+    global engine, SessionLocal, _db_initialized, _using_fallback
     
     if _db_initialized:
         return True
     
-    database_url = os.environ.get('DATABASE_URL')
+    database_url = os.environ.get('DATABASE_URL', '')
     
+    # Handle file: URLs (convert to SQLite format for local dev)
+    if database_url.startswith('file:'):
+        path = database_url[5:]  # Remove 'file:'
+        database_url = f'sqlite:///{path}'
+        logger.info(f"Converted file: URL to SQLite")
+        os.environ['DATABASE_URL'] = database_url
+        _using_fallback = True
+    
+    # Default to SQLite if no URL
     if not database_url:
-        logger.error("DATABASE_URL not set")
-        return False
+        database_url = 'sqlite:///./trading.db'
+        logger.info("No DATABASE_URL, using SQLite")
+        _using_fallback = True
+        os.environ['DATABASE_URL'] = database_url
     
     # Check if using SQLite
     is_sqlite = database_url.startswith('sqlite')
@@ -208,8 +220,27 @@ def init_db():
                 time.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 10)
             else:
-                logger.error("❌ All connection attempts failed")
-                return False
+                logger.error("❌ All PostgreSQL connection attempts failed")
+                # Fallback to SQLite
+                logger.info("🔄 Falling back to SQLite database...")
+                try:
+                    fallback_url = 'sqlite:///./trading.db'
+                    engine = create_engine(
+                        fallback_url,
+                        pool_pre_ping=True,
+                        connect_args={"check_same_thread": False}
+                    )
+                    with engine.connect() as conn:
+                        conn.execute(text("SELECT 1"))
+                    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+                    Base.metadata.create_all(bind=engine)
+                    _db_initialized = True
+                    _using_fallback = True
+                    logger.info("✅ SQLite fallback database initialized successfully")
+                    return True
+                except Exception as fallback_error:
+                    logger.error(f"❌ SQLite fallback also failed: {fallback_error}")
+                    return False
     
     return False
 
@@ -247,8 +278,8 @@ def is_db_ready() -> bool:
 
 
 def is_using_fallback() -> bool:
-    """Always False - PostgreSQL only"""
-    return False
+    """Check if using SQLite fallback instead of PostgreSQL"""
+    return _using_fallback
 
 
 # ============================================

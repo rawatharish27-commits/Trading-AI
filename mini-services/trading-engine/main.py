@@ -157,7 +157,10 @@ async def startup_event():
     try:
         db_success = init_db()
         if db_success:
-            logger.info("✅ Connected to PostgreSQL database successfully")
+            if is_using_fallback():
+                logger.info("✅ Connected to SQLite database (fallback mode)")
+            else:
+                logger.info("✅ Connected to database successfully")
         else:
             logger.warning("⚠️ Database initialization returned False")
     except Exception as e:
