@@ -1,80 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
 import {
-  Activity,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Brain,
-  BarChart3,
-  RefreshCw,
-  Play,
-  History,
-  BookOpen,
-  Layers,
-  Wifi,
-  Circle,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronRight,
-  Database,
-  Search,
-  LineChart,
-  PieChart,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  MinusCircle,
-  Sparkles,
-  Zap,
-  Filter,
-  Download,
-  Eye,
-  Clock,
-  Calendar,
-  Percent,
-  DollarSign,
-  Award,
-  Lightbulb,
-  AlertCircle,
-  Cpu,
-  MessageSquare,
+  Activity, TrendingUp, TrendingDown, Target, Brain, BarChart3, RefreshCw,
+  Play, History, BookOpen, Layers, Wifi, Circle, ArrowUpRight, ArrowDownRight,
+  Database, Sparkles, Zap, CheckCircle2, XCircle, MinusCircle, Clock,
+  AlertCircle, Cpu, MessageSquare, Settings, Power, Bot, Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-// ============================================
-// TYPES
-// ============================================
-
-interface DataStatus {
-  totalStocks: number;
-  stocksWithData: number;
-  lastSessionDate: string | null;
-  lastDataDate: string | null;
-  firstDataDate: string | null;
-  isUpToDate: boolean;
-}
-
+// Types
 interface TradeSignal {
   id: string;
-  stockId: string;
   signalType: string;
   status: string;
   confidence: number;
@@ -82,71 +27,18 @@ interface TradeSignal {
   stopLoss: number;
   targetPrice: number;
   riskReward: number;
-  timeframe: string;
-  trendDirection: string | null;
-  regime: string | null;
-  confluenceScore: number | null;
-  reasoning: string | null;
   generatedAt: string;
-  validTill: string | null;
-  activatedAt: string | null;
-  closedAt: string | null;
-  stock: {
-    symbol: string;
-    name: string | null;
-    sector: string | null;
-  };
-  tracking?: SignalTracking | null;
-}
-
-interface SignalTracking {
-  maxProfit: number | null;
-  maxLoss: number | null;
-  finalResult: string | null;
-  finalPnlPercent: number | null;
+  stock: { symbol: string; name: string | null; sector: string | null };
+  tracking?: { finalPnlPercent: number | null; finalResult: string | null };
 }
 
 interface LearningRecord {
   id: string;
   setupType: string;
-  trendDirection: string | null;
-  regime: string | null;
-  volumeProfile: string | null;
-  sector: string | null;
   result: string;
   pnlPercent: number | null;
-  maxDrawdown: number | null;
-  maxProfit: number | null;
   whatWorked: string | null;
   whatFailed: string | null;
-  improvement: string | null;
-  createdAt: string;
-}
-
-interface StrategyPerformance {
-  id: string;
-  strategyName: string;
-  totalSignals: number;
-  successCount: number;
-  lossCount: number;
-  successRate: number;
-  avgProfit: number;
-  avgLoss: number;
-  maxProfit: number;
-  maxLoss: number;
-  isActive: boolean;
-}
-
-interface WatchlistItem {
-  id: string;
-  successRate: number;
-  totalSignals: number;
-  avgPnl: number;
-  stock: {
-    symbol: string;
-    name: string | null;
-    sector: string | null;
-  };
 }
 
 interface DashboardStats {
@@ -160,18 +52,21 @@ interface DashboardStats {
   recentLearning: LearningRecord[];
 }
 
-// ============================================
-// API HELPERS
-// ============================================
+interface AutomationStatus {
+  status: string;
+  database: { totalStocks: number; stocksWithData: number; totalCandles: number };
+  signals: { total: number; pending: number; success: number };
+  scheduledTasks: string[];
+}
 
+// API Helpers
 async function apiGet(type: string, params: Record<string, string> = {}) {
   const query = new URLSearchParams({ type, ...params }).toString();
   try {
     const res = await fetch(`/api/trading?${query}`);
-    if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
     return await res.json();
-  } catch (error) {
-    return { success: false, error: 'Network error' };
+  } catch {
+    return { success: false };
   }
 }
 
@@ -182,232 +77,110 @@ async function apiPost(data: Record<string, unknown>) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
     return await res.json();
-  } catch (error) {
-    return { success: false, error: 'Network error' };
+  } catch {
+    return { success: false };
   }
 }
 
-// ============================================
-// MAIN COMPONENT
-// ============================================
+async function automationApi(action: string) {
+  try {
+    const res = await fetch('/api/automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    return await res.json();
+  } catch {
+    return { success: false, error: 'Automation service offline' };
+  }
+}
 
+// Stats Card Component
+function StatsCard({ title, value, icon, color }: { title: string; value: string; icon: React.ReactNode; color: string }) {
+  const colorClasses: Record<string, string> = {
+    emerald: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30',
+    red: 'from-red-500/20 to-red-600/10 border-red-500/30',
+    amber: 'from-amber-500/20 to-amber-600/10 border-amber-500/30',
+    blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
+    purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
+  };
+  
+  return (
+    <div className={`p-4 rounded-xl bg-gradient-to-br ${colorClasses[color]} border`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-slate-400 text-sm">{title}</span>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+    </div>
+  );
+}
+
+// Main Component
 export default function TradingDashboard() {
-  // Core State
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  
-  // Data State
-  const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [signals, setSignals] = useState<TradeSignal[]>([]);
-  const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
-  const [strategies, setStrategies] = useState<StrategyPerformance[]>([]);
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  
-  // Filter State
-  const [signalFilter, setSignalFilter] = useState<string>('all');
-  const [syncProgress, setSyncProgress] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  
-  // LLM State
-  const [llmReady, setLlmReady] = useState(false);
-  
-  // Check LLM status on mount
-  useEffect(() => {
-    const checkLLM = async () => {
-      try {
-        const res = await apiGet('llm', { action: 'status' });
-        setLlmReady(res.success && res.data?.initialized);
-      } catch {
-        setLlmReady(false);
-      }
-    };
-    checkLLM();
-  }, []);
-  
-  // Load initial data
+  const [signalFilter, setSignalFilter] = useState('all');
+  const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const initialLoadDone = useRef(false);
+
+  // Load Dashboard
   const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    
-    const [statusRes, dashboardRes] = await Promise.all([
-      apiGet('data', { action: 'status' }),
+    const [dashRes, statusRes] = await Promise.all([
       apiGet('dashboard', { section: 'overview' }),
+      fetch('/api/automation?action=status').then(r => r.json()).catch(() => ({ success: false })),
     ]);
     
-    if (statusRes.success && statusRes.data) {
-      setDataStatus(statusRes.data);
-    }
-    
-    if (dashboardRes.success && dashboardRes.data) {
-      setDashboardStats(dashboardRes.data);
-    }
-    
+    if (dashRes.success) setDashboardStats(dashRes.data);
+    if (statusRes.success) setAutomationStatus(statusRes);
     setLoading(false);
+    setLastUpdate(new Date());
   }, []);
-  
-  // Load tab-specific data
+
+  // Load signals
   useEffect(() => {
-    const loadTabData = async () => {
-      if (activeTab === 'signals') {
-        const res = await apiGet('dashboard', { 
-          section: 'signals', 
-          status: signalFilter === 'all' ? '' : signalFilter 
-        });
-        if (res.success && res.data) {
-          setSignals(res.data.signals || []);
-        }
-      }
-      
-      if (activeTab === 'learning') {
-        const res = await apiGet('dashboard', { section: 'learning' });
-        if (res.success && res.data) {
-          setLearningRecords(res.data.records || []);
-          setStrategies(res.data.strategies || []);
-        }
-      }
-      
-      if (activeTab === 'watchlist') {
-        const res = await apiGet('dashboard', { section: 'watchlist' });
-        if (res.success && res.data) {
-          setWatchlist(res.data);
-        }
-      }
-      
-      if (activeTab === 'strategies') {
-        const res = await apiGet('dashboard', { section: 'strategies' });
-        if (res.success && res.data) {
-          setStrategies(res.data);
-        }
-      }
-    };
-    
-    loadTabData();
+    if (activeTab === 'signals') {
+      apiGet('dashboard', { section: 'signals', status: signalFilter === 'all' ? '' : signalFilter })
+        .then(res => res.success && setSignals(res.data.signals || []));
+    }
   }, [activeTab, signalFilter]);
-  
-  // Initial load
+
+  // Auto refresh every 30 seconds + initial load
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-  
-  // ============================================
-  // ACTIONS
-  // ============================================
-  
-  const handleLoadData = async () => {
-    setIsSyncing(true);
-    setSyncProgress('Initializing stocks...');
+    // Initial load using ref to prevent strict mode double-fetch
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadDashboard(); // void to explicitly ignore the promise - this is an intentional data fetch
+    }
     
-    try {
-      // Initialize stocks first
-      const initRes = await apiGet('data', { action: 'init-stocks' });
-      
-      if (!initRes.success) {
-        setSyncProgress('Failed to initialize stocks');
-        return;
-      }
-      
-      setSyncProgress(`Initialized ${initRes.data.stocksInitialized} stocks. Fetching data...`);
-      
-      // Sync data
-      const syncRes = await apiPost({
-        type: 'fetch',
-        action: 'sync',
-        years: 2,
-      });
-      
-      if (syncRes.success) {
-        setSyncProgress(
-          `Sync complete! ${syncRes.data.stocksUpdated} stocks updated, ${syncRes.data.candlesSaved} candles saved.`
-        );
-        await loadDashboard();
-      } else {
-        setSyncProgress(`Sync failed: ${syncRes.error}`);
-      }
-    } catch (error) {
-      setSyncProgress('An error occurred during sync');
-    } finally {
-      setIsSyncing(false);
+    if (!autoRefresh) return;
+    const interval = setInterval(loadDashboard, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, loadDashboard]);
+
+  // Automation Actions
+  const runAutomation = async (action: string) => {
+    setIsRunning(true);
+    const res = await automationApi(action);
+    if (res.success) {
+      await loadDashboard();
     }
+    setIsRunning(false);
   };
-  
-  const handleGenerateSignals = async () => {
-    setIsGenerating(true);
-    
-    try {
-      const res = await apiPost({
-        type: 'analyze',
-        action: 'generate-signals',
-      });
-      
-      if (res.success) {
-        await loadDashboard();
-        setActiveTab('signals');
-      }
-    } catch (error) {
-      console.error('Error generating signals:', error);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-  
-  // ============================================
-  // RENDER HELPERS
-  // ============================================
-  
-  const formatPrice = (price: number) => 
-    `₹${price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-  
-  const formatPercent = (value: number) => 
-    `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  
-  const formatDate = (date: string) => 
-    new Date(date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  
-  const formatDateTime = (date: string) =>
-    new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'SUCCESS': return 'text-emerald-400';
-      case 'LOSS': return 'text-red-400';
-      case 'ACTIVE': return 'text-amber-400';
-      case 'PENDING': return 'text-blue-400';
-      default: return 'text-slate-400';
-    }
-  };
-  
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'SUCCESS':
-        return <Badge className="bg-emerald-500/20 text-emerald-400"><CheckCircle2 className="w-3 h-3 mr-1" />Success</Badge>;
-      case 'LOSS':
-        return <Badge className="bg-red-500/20 text-red-400"><XCircle className="w-3 h-3 mr-1" />Loss</Badge>;
-      case 'ACTIVE':
-        return <Badge className="bg-amber-500/20 text-amber-400"><Activity className="w-3 h-3 mr-1" />Active</Badge>;
-      case 'PENDING':
-        return <Badge className="bg-blue-500/20 text-blue-400"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
-      default:
-        return <Badge className="bg-slate-500/20 text-slate-400">{status}</Badge>;
-    }
-  };
-  
-  // ============================================
-  // RENDER
-  // ============================================
-  
-  if (loading && !dataStatus) {
+
+  // Format helpers
+  const formatPrice = (p: number) => `₹${p.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const formatPercent = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -417,7 +190,7 @@ export default function TradingDashboard() {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
       {/* Header */}
@@ -429,124 +202,87 @@ export default function TradingDashboard() {
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-white">Trading AI Agent</h1>
-                <p className="text-xs text-slate-400">Nifty 500 • Swing Trading • LLM Brain</p>
+                <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                  Trading AI Agent
+                  {automationStatus?.status === 'running' && (
+                    <Badge className="bg-emerald-500/20 text-emerald-400">
+                      <Bot className="w-3 h-3 mr-1" />Automated
+                    </Badge>
+                  )}
+                </h1>
+                <p className="text-xs text-slate-400">Nifty 500 • Swing Trading • Auto-Signals</p>
               </div>
-              {llmReady && (
-                <Badge className="ml-2 bg-purple-500/20 text-purple-400">
-                  <Cpu className="w-2 h-2 mr-1" />
-                  LLM Ready
-                </Badge>
-              )}
-              {dataStatus?.isUpToDate && (
-                <Badge className="ml-2 bg-emerald-500/20 text-emerald-400">
-                  <Circle className="w-2 h-2 mr-1 fill-emerald-400" />
-                  Data Up-to-Date
-                </Badge>
-              )}
             </div>
             
             <div className="flex items-center gap-2">
+              <div className="text-xs text-slate-400 mr-2">
+                Last: {lastUpdate.toLocaleTimeString()}
+              </div>
               <Button
-                onClick={handleLoadData}
-                disabled={isSyncing}
-                className="bg-amber-500 hover:bg-amber-600 text-black"
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                variant="ghost"
+                size="sm"
+                className={autoRefresh ? 'text-emerald-400' : 'text-slate-400'}
               >
-                {isSyncing ? (
-                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Syncing...</>
-                ) : (
-                  <><Database className="w-4 h-4 mr-2" />Load Data</>
-                )}
+                <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-                onClick={handleGenerateSignals}
-                disabled={isGenerating || !dataStatus?.isUpToDate}
-                variant="outline"
-                className="border-amber-500 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => runAutomation('run-all')}
+                disabled={isRunning}
+                className="bg-amber-500 hover:bg-amber-600 text-black"
               >
-                {isGenerating ? (
-                  <><Sparkles className="w-4 h-4 mr-2 animate-pulse" />Generating...</>
+                {isRunning ? (
+                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Running...</>
                 ) : (
-                  <><Sparkles className="w-4 h-4 mr-2" />Generate Signals</>
+                  <><Power className="w-4 h-4 mr-2" />Run All</>
                 )}
               </Button>
             </div>
           </div>
-          
-          {/* Sync Progress */}
-          {syncProgress && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-2"
-            >
-              <Alert className="bg-slate-800/50 border-slate-700">
-                <Database className="w-4 h-4" />
-                <AlertDescription className="text-slate-300">{syncProgress}</AlertDescription>
-              </Alert>
-            </motion.div>
-          )}
         </div>
       </header>
-      
+
       {/* Main Content */}
       <main className="flex-1 max-w-[1920px] mx-auto w-full px-4 py-4">
-        {/* Stats Cards */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-          <StatsCard
-            title="Win Rate"
-            value={`${(dashboardStats?.winRate || 0).toFixed(1)}%`}
-            icon={<Target className="w-5 h-5" />}
-            color={(dashboardStats?.winRate || 0) >= 60 ? 'emerald' : 'amber'}
-          />
-          <StatsCard
-            title="Total Signals"
-            value={(dashboardStats?.totalSignals || 0).toString()}
-            icon={<BarChart3 className="w-5 h-5" />}
-            color="blue"
-          />
-          <StatsCard
-            title="Success"
-            value={(dashboardStats?.successSignals || 0).toString()}
-            icon={<CheckCircle2 className="w-5 h-5" />}
-            color="emerald"
-          />
-          <StatsCard
-            title="Loss"
-            value={(dashboardStats?.lossSignals || 0).toString()}
-            icon={<XCircle className="w-5 h-5" />}
-            color="red"
-          />
-          <StatsCard
-            title="Active"
-            value={(dashboardStats?.activeSignals || 0).toString()}
-            icon={<Activity className="w-5 h-5" />}
-            color="amber"
-          />
-          <StatsCard
-            title="Pending"
-            value={(dashboardStats?.pendingSignals || 0).toString()}
-            icon={<Clock className="w-5 h-5" />}
-            color="purple"
-          />
+          <StatsCard title="Win Rate" value={`${(dashboardStats?.winRate || 0).toFixed(1)}%`} icon={<Target className="w-5 h-5 text-amber-400" />} color={(dashboardStats?.winRate || 0) >= 60 ? 'emerald' : 'amber'} />
+          <StatsCard title="Total Signals" value={(dashboardStats?.totalSignals || 0).toString()} icon={<BarChart3 className="w-5 h-5 text-blue-400" />} color="blue" />
+          <StatsCard title="Success" value={(dashboardStats?.successSignals || 0).toString()} icon={<CheckCircle2 className="w-5 h-5 text-emerald-400" />} color="emerald" />
+          <StatsCard title="Loss" value={(dashboardStats?.lossSignals || 0).toString()} icon={<XCircle className="w-5 h-5 text-red-400" />} color="red" />
+          <StatsCard title="Active" value={(dashboardStats?.activeSignals || 0).toString()} icon={<Activity className="w-5 h-5 text-amber-400" />} color="amber" />
+          <StatsCard title="Pending" value={(dashboardStats?.pendingSignals || 0).toString()} icon={<Clock className="w-5 h-5 text-purple-400" />} color="purple" />
         </div>
-        
-        {/* Data Status */}
-        {!dataStatus?.isUpToDate && dataStatus && (
-          <Alert className="mb-4 bg-amber-500/10 border-amber-500/30">
-            <AlertCircle className="w-4 h-4 text-amber-400" />
-            <AlertTitle className="text-amber-400">Data Sync Required</AlertTitle>
-            <AlertDescription className="text-slate-300">
-              {dataStatus.totalStocks === 0 
-                ? 'No stocks in database. Click "Load Data" to initialize.'
-                : `Last data: ${dataStatus.lastDataDate ? formatDate(dataStatus.lastDataDate) : 'Never'}. Click "Load Data" to sync.`
-              }
-            </AlertDescription>
-          </Alert>
-        )}
-        
+
+        {/* Automation Controls */}
+        <Card className="bg-slate-800/50 border-slate-700/50 mb-4">
+          <CardContent className="py-4">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => runAutomation('fetch-data')} disabled={isRunning} variant="outline" className="border-blue-500 text-blue-400">
+                <Database className="w-4 h-4 mr-2" />Fetch Data
+              </Button>
+              <Button onClick={() => runAutomation('generate-signals')} disabled={isRunning} variant="outline" className="border-amber-500 text-amber-400">
+                <Sparkles className="w-4 h-4 mr-2" />Generate Signals
+              </Button>
+              <Button onClick={() => runAutomation('track-signals')} disabled={isRunning} variant="outline" className="border-purple-500 text-purple-400">
+                <Activity className="w-4 h-4 mr-2" />Track Signals
+              </Button>
+              <Button onClick={() => runAutomation('run-learning')} disabled={isRunning} variant="outline" className="border-emerald-500 text-emerald-400">
+                <Brain className="w-4 h-4 mr-2" />Run Learning
+              </Button>
+            </div>
+            {automationStatus && (
+              <div className="mt-3 text-xs text-slate-400 flex gap-4">
+                <span>📊 {automationStatus.database?.stocksWithData || 0} stocks</span>
+                <span>📈 {automationStatus.database?.totalCandles || 0} candles</span>
+                <span>🎯 {automationStatus.signals?.total || 0} signals</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-slate-800/50 border border-slate-700/50 mb-4">
             <TabsTrigger value="overview" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400">
               <Layers className="w-4 h-4 mr-2" />Overview
@@ -557,141 +293,76 @@ export default function TradingDashboard() {
             <TabsTrigger value="learning" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400">
               <Brain className="w-4 h-4 mr-2" />Learning
             </TabsTrigger>
-            <TabsTrigger value="strategies" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400">
-              <PieChart className="w-4 h-4 mr-2" />Strategies
-            </TabsTrigger>
-            <TabsTrigger value="watchlist" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400">
-              <Award className="w-4 h-4 mr-2" />Watchlist
-            </TabsTrigger>
           </TabsList>
-          
+
           {/* Overview Tab */}
           <TabsContent value="overview">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Recent Signals */}
               <Card className="bg-slate-800/50 border-slate-700/50">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-500" />
-                    Recent Signals
+                    <Zap className="w-5 h-5 text-amber-500" />Recent Signals
                   </CardTitle>
-                  <CardDescription>Latest generated trade signals</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px]">
-                    {dashboardStats?.recentSignals && dashboardStats.recentSignals.length > 0 ? (
+                    {dashboardStats?.recentSignals?.length ? (
                       <div className="space-y-2">
-                        {dashboardStats.recentSignals.map((signal) => (
-                          <div
-                            key={signal.id}
-                            className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/30"
-                          >
+                        {dashboardStats.recentSignals.map((s) => (
+                          <div key={s.id} className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/30">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-white">{signal.stock.symbol}</span>
-                                <Badge className={signal.signalType === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}>
-                                  {signal.signalType}
+                                <span className="font-semibold text-white">{s.stock.symbol}</span>
+                                <Badge className={s.signalType === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}>
+                                  {s.signalType}
                                 </Badge>
-                                {getStatusBadge(signal.status)}
                               </div>
-                              <span className="text-amber-400 font-mono">{signal.confidence.toFixed(0)}%</span>
+                              <span className="text-amber-400 font-mono">{s.confidence.toFixed(0)}%</span>
                             </div>
                             <div className="grid grid-cols-4 gap-2 text-xs">
-                              <div>
-                                <span className="text-slate-400">Entry</span>
-                                <p className="text-white font-mono">{formatPrice(signal.entryPrice)}</p>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">SL</span>
-                                <p className="text-red-400 font-mono">{formatPrice(signal.stopLoss)}</p>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">Target</span>
-                                <p className="text-emerald-400 font-mono">{formatPrice(signal.targetPrice)}</p>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">R:R</span>
-                                <p className="text-amber-400 font-mono">{signal.riskReward.toFixed(2)}</p>
-                              </div>
+                              <div><span className="text-slate-400">Entry</span><p className="text-white font-mono">{formatPrice(s.entryPrice)}</p></div>
+                              <div><span className="text-slate-400">SL</span><p className="text-red-400 font-mono">{formatPrice(s.stopLoss)}</p></div>
+                              <div><span className="text-slate-400">Target</span><p className="text-emerald-400 font-mono">{formatPrice(s.targetPrice)}</p></div>
+                              <div><span className="text-slate-400">R:R</span><p className="text-amber-400 font-mono">{s.riskReward.toFixed(2)}</p></div>
                             </div>
-                            {signal.tracking?.finalPnlPercent && (
-                              <div className="mt-2 pt-2 border-t border-slate-600/30">
-                                <span className={cn(
-                                  "font-mono font-bold",
-                                  signal.tracking.finalPnlPercent > 0 ? "text-emerald-400" : "text-red-400"
-                                )}>
-                                  {formatPercent(signal.tracking.finalPnlPercent)}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-slate-400">
                         <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No signals generated yet</p>
-                        <p className="text-sm">Click "Generate Signals" to start</p>
+                        <p>No signals yet. Click "Run All" to start automation.</p>
                       </div>
                     )}
                   </ScrollArea>
                 </CardContent>
               </Card>
-              
-              {/* Recent Learning */}
+
               <Card className="bg-slate-800/50 border-slate-700/50">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-amber-500" />
-                    Learning History
+                    <Brain className="w-5 h-5 text-amber-500" />Learning History
                   </CardTitle>
-                  <CardDescription>Insights from past trades</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px]">
-                    {dashboardStats?.recentLearning && dashboardStats.recentLearning.length > 0 ? (
+                    {dashboardStats?.recentLearning?.length ? (
                       <div className="space-y-2">
-                        {dashboardStats.recentLearning.map((record) => (
-                          <div
-                            key={record.id}
-                            className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/30"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Badge className={cn(
-                                  record.result === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' :
-                                  record.result === 'LOSS' ? 'bg-red-500/20 text-red-400' :
-                                  'bg-slate-500/20 text-slate-400'
-                                )}>
-                                  {record.result}
-                                </Badge>
-                                <span className="text-slate-300">{record.setupType}</span>
-                              </div>
-                              <span className={cn(
-                                "font-mono",
-                                record.pnlPercent && record.pnlPercent > 0 ? "text-emerald-400" : "text-red-400"
-                              )}>
-                                {record.pnlPercent ? formatPercent(record.pnlPercent) : 'N/A'}
-                              </span>
+                        {dashboardStats.recentLearning.map((r) => (
+                          <div key={r.id} className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/30">
+                            <div className="flex items-center justify-between">
+                              <Badge className={r.result === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}>
+                                {r.result}
+                              </Badge>
+                              <span className="font-mono">{r.pnlPercent ? formatPercent(r.pnlPercent) : 'N/A'}</span>
                             </div>
-                            {record.whatFailed && (
-                              <div className="text-xs text-red-300 bg-red-500/10 p-2 rounded">
-                                <span className="font-semibold">Issue:</span> {record.whatFailed}
-                              </div>
-                            )}
-                            {record.improvement && (
-                              <div className="text-xs text-amber-300 bg-amber-500/10 p-2 rounded mt-1">
-                                <span className="font-semibold">Improvement:</span> {record.improvement}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-slate-400">
                         <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No learning records yet</p>
-                        <p className="text-sm">Complete trades to generate insights</p>
+                        <p>Learning records will appear after trades complete.</p>
                       </div>
                     )}
                   </ScrollArea>
@@ -699,16 +370,13 @@ export default function TradingDashboard() {
               </Card>
             </div>
           </TabsContent>
-          
+
           {/* Signals Tab */}
           <TabsContent value="signals">
             <Card className="bg-slate-800/50 border-slate-700/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-500" />
-                    Trade Signals
-                  </CardTitle>
+                  <CardTitle className="text-white">Trade Signals</CardTitle>
                   <Select value={signalFilter} onValueChange={setSignalFilter}>
                     <SelectTrigger className="w-32 bg-slate-700 border-slate-600">
                       <SelectValue />
@@ -725,477 +393,78 @@ export default function TradingDashboard() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[600px]">
-                  {signals.length > 0 ? (
+                  {signals.length ? (
                     <div className="space-y-2">
-                      {signals.map((signal) => (
-                        <div
-                          key={signal.id}
-                          className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/30 hover:bg-slate-700/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <span className="font-bold text-white text-lg">{signal.stock.symbol}</span>
-                                {signal.stock.name && (
-                                  <span className="text-slate-400 text-sm ml-2">{signal.stock.name}</span>
-                                )}
-                              </div>
-                              <Badge className={signal.signalType === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}>
-                                {signal.signalType === 'BUY' ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
-                                {signal.signalType}
+                      {signals.map((s) => (
+                        <div key={s.id} className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-lg">{s.stock.symbol}</span>
+                              <Badge className={s.signalType === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}>
+                                {s.signalType === 'BUY' ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
+                                {s.signalType}
                               </Badge>
-                              {getStatusBadge(signal.status)}
+                              <Badge className={s.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : s.status === 'LOSS' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}>
+                                {s.status}
+                              </Badge>
                             </div>
-                            <div className="text-right">
-                              <div className="text-amber-400 font-mono text-lg font-bold">
-                                {signal.confidence.toFixed(0)}%
-                              </div>
-                              <div className="text-slate-400 text-xs">Confidence</div>
-                            </div>
+                            <div className="text-amber-400 font-mono text-lg">{s.confidence.toFixed(0)}%</div>
                           </div>
-                          
-                          <div className="grid grid-cols-5 gap-4 mb-3">
-                            <div className="bg-slate-800/50 p-2 rounded">
-                              <span className="text-slate-400 text-xs block">Entry</span>
-                              <p className="text-white font-mono font-semibold">{formatPrice(signal.entryPrice)}</p>
-                            </div>
-                            <div className="bg-red-500/10 p-2 rounded">
-                              <span className="text-slate-400 text-xs block">Stop Loss</span>
-                              <p className="text-red-400 font-mono font-semibold">{formatPrice(signal.stopLoss)}</p>
-                            </div>
-                            <div className="bg-emerald-500/10 p-2 rounded">
-                              <span className="text-slate-400 text-xs block">Target</span>
-                              <p className="text-emerald-400 font-mono font-semibold">{formatPrice(signal.targetPrice)}</p>
-                            </div>
-                            <div className="bg-slate-800/50 p-2 rounded">
-                              <span className="text-slate-400 text-xs block">Risk:Reward</span>
-                              <p className="text-amber-400 font-mono font-semibold">{signal.riskReward.toFixed(2)}</p>
-                            </div>
-                            <div className="bg-slate-800/50 p-2 rounded">
-                              <span className="text-slate-400 text-xs block">Holding</span>
-                              <p className="text-white font-mono font-semibold">5 Days</p>
-                            </div>
+                          <div className="grid grid-cols-4 gap-2 text-sm">
+                            <div className="bg-slate-800/50 p-2 rounded"><span className="text-slate-400 text-xs">Entry</span><p className="text-white font-mono">{formatPrice(s.entryPrice)}</p></div>
+                            <div className="bg-red-500/10 p-2 rounded"><span className="text-slate-400 text-xs">SL</span><p className="text-red-400 font-mono">{formatPrice(s.stopLoss)}</p></div>
+                            <div className="bg-emerald-500/10 p-2 rounded"><span className="text-slate-400 text-xs">Target</span><p className="text-emerald-400 font-mono">{formatPrice(s.targetPrice)}</p></div>
+                            <div className="bg-slate-800/50 p-2 rounded"><span className="text-slate-400 text-xs">R:R</span><p className="text-amber-400 font-mono">{s.riskReward.toFixed(2)}</p></div>
                           </div>
-                          
-                          <div className="flex items-center justify-between text-xs text-slate-400">
-                            <div className="flex items-center gap-4">
-                              <span>Generated: {formatDateTime(signal.generatedAt)}</span>
-                              {signal.trendDirection && (
-                                <span className={signal.trendDirection === 'BULLISH' ? 'text-emerald-400' : 'text-red-400'}>
-                                  Trend: {signal.trendDirection}
-                                </span>
-                              )}
-                              {signal.regime && (
-                                <span>Regime: {signal.regime}</span>
-                              )}
-                            </div>
-                            {signal.tracking?.finalPnlPercent !== null && signal.tracking?.finalPnlPercent !== undefined && (
-                              <span className={cn(
-                                "font-mono font-bold text-lg",
-                                signal.tracking.finalPnlPercent > 0 ? "text-emerald-400" : "text-red-400"
-                              )}>
-                                {formatPercent(signal.tracking.finalPnlPercent)}
-                              </span>
-                            )}
-                          </div>
-                          
-                          {signal.reasoning && (
-                            <div className="mt-2 pt-2 border-t border-slate-600/30">
-                              {(() => {
-                                try {
-                                  const reasoning = typeof signal.reasoning === 'string' ? JSON.parse(signal.reasoning) : signal.reasoning;
-                                  return (
-                                    <>
-                                      {reasoning.llmReasoning && (
-                                        <div className="mb-2 p-2 bg-purple-500/10 rounded border border-purple-500/20">
-                                          <div className="flex items-center gap-1 text-purple-400 text-xs mb-1">
-                                            <MessageSquare className="w-3 h-3" />
-                                            <span className="font-semibold">LLM Analysis:</span>
-                                          </div>
-                                          <p className="text-slate-300 text-xs">{reasoning.llmReasoning}</p>
-                                        </div>
-                                      )}
-                                      {reasoning.keyFactors && reasoning.keyFactors.length > 0 && (
-                                        <div className="mb-1">
-                                          <span className="text-emerald-400 text-xs font-semibold">Key Factors:</span>
-                                          <div className="flex flex-wrap gap-1 mt-1">
-                                            {reasoning.keyFactors.map((factor: string, i: number) => (
-                                              <Badge key={i} variant="outline" className="text-xs border-emerald-500/30 text-emerald-300">
-                                                {factor}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {reasoning.riskFactors && reasoning.riskFactors.length > 0 && (
-                                        <div>
-                                          <span className="text-red-400 text-xs font-semibold">Risk Factors:</span>
-                                          <div className="flex flex-wrap gap-1 mt-1">
-                                            {reasoning.riskFactors.map((factor: string, i: number) => (
-                                              <Badge key={i} variant="outline" className="text-xs border-red-500/30 text-red-300">
-                                                {factor}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {reasoning.factors && !reasoning.keyFactors && (
-                                        <div className="flex flex-wrap gap-1">
-                                          {reasoning.factors.map((reason: string, i: number) => (
-                                            <Badge key={i} variant="outline" className="text-xs border-slate-600 text-slate-300">
-                                              {reason}
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                } catch {
-                                  return (
-                                    <div className="flex flex-wrap gap-1">
-                                      <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-                                        {signal.reasoning}
-                                      </Badge>
-                                    </div>
-                                  );
-                                }
-                              })()}
-                            </div>
-                          )}
+                          <div className="text-xs text-slate-400 mt-2">{formatDate(s.generatedAt)}</div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-12 text-slate-400">
                       <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">No signals found</p>
-                      <p className="text-sm mt-2">Generate signals or adjust filters</p>
+                      <p>No signals found</p>
                     </div>
                   )}
                 </ScrollArea>
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           {/* Learning Tab */}
           <TabsContent value="learning">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
-                <Card className="bg-slate-800/50 border-slate-700/50">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-amber-500" />
-                      Learning Records
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[600px]">
-                      {learningRecords.length > 0 ? (
-                        <div className="space-y-2">
-                          {learningRecords.map((record) => (
-                            <div key={record.id} className="p-4 bg-slate-700/30 rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={cn(
-                                    record.result === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' :
-                                    record.result === 'LOSS' ? 'bg-red-500/20 text-red-400' :
-                                    'bg-slate-500/20 text-slate-400'
-                                  )}>
-                                    {record.result === 'SUCCESS' ? <CheckCircle2 className="w-3 h-3 mr-1" /> :
-                                     record.result === 'LOSS' ? <XCircle className="w-3 h-3 mr-1" /> :
-                                     <MinusCircle className="w-3 h-3 mr-1" />}
-                                    {record.result}
-                                  </Badge>
-                                  <span className="text-white font-medium">{record.setupType}</span>
-                                  {record.sector && (
-                                    <Badge variant="outline" className="text-slate-400">{record.sector}</Badge>
-                                  )}
-                                </div>
-                                <span className={cn(
-                                  "font-mono font-bold",
-                                  record.pnlPercent && record.pnlPercent > 0 ? "text-emerald-400" : "text-red-400"
-                                )}>
-                                  {record.pnlPercent ? formatPercent(record.pnlPercent) : 'N/A'}
-                                </span>
-                              </div>
-                              
-                              <div className="grid grid-cols-3 gap-2 text-xs mb-2">
-                                {record.trendDirection && (
-                                  <div>
-                                    <span className="text-slate-400">Trend:</span>
-                                    <span className={record.trendDirection === 'BULLISH' ? 'text-emerald-400 ml-1' : 'text-red-400 ml-1'}>
-                                      {record.trendDirection}
-                                    </span>
-                                  </div>
-                                )}
-                                {record.regime && (
-                                  <div>
-                                    <span className="text-slate-400">Regime:</span>
-                                    <span className="text-white ml-1">{record.regime}</span>
-                                  </div>
-                                )}
-                                {record.volumeProfile && (
-                                  <div>
-                                    <span className="text-slate-400">Volume:</span>
-                                    <span className="text-white ml-1">{record.volumeProfile}</span>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {record.whatFailed && (
-                                <div className="bg-red-500/10 border border-red-500/30 rounded p-2 text-xs text-red-300 mb-2">
-                                  <span className="font-semibold">What went wrong:</span> {record.whatFailed}
-                                </div>
-                              )}
-                              
-                              {record.improvement && (
-                                <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2 text-xs text-amber-300">
-                                  <Lightbulb className="w-3 h-3 inline mr-1" />
-                                  <span className="font-semibold">Improvement:</span> {record.improvement}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-12 text-slate-400">
-                          <Brain className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                          <p>No learning records yet</p>
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              {/* Strategy Summary */}
-              <div>
-                <Card className="bg-slate-800/50 border-slate-700/50">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <PieChart className="w-5 h-5 text-amber-500" />
-                      Strategy Performance
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {strategies.length > 0 ? strategies.map((strategy) => (
-                        <div key={strategy.id} className="p-3 bg-slate-700/30 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-white font-medium">{strategy.strategyName}</span>
-                            <Badge className={cn(
-                              strategy.successRate >= 60 ? 'bg-emerald-500/20 text-emerald-400' :
-                              strategy.successRate >= 40 ? 'bg-amber-500/20 text-amber-400' :
-                              'bg-red-500/20 text-red-400'
-                            )}>
-                              {strategy.successRate.toFixed(0)}% Win
-                            </Badge>
-                          </div>
-                          <Progress value={strategy.successRate} className="h-2 bg-slate-700" />
-                          <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                            <div>
-                              <span className="text-slate-400">Trades</span>
-                              <p className="text-white">{strategy.totalSignals}</p>
-                            </div>
-                            <div>
-                              <span className="text-slate-400">Avg Profit</span>
-                              <p className="text-emerald-400">{strategy.avgProfit.toFixed(2)}%</p>
-                            </div>
-                            <div>
-                              <span className="text-slate-400">Avg Loss</span>
-                              <p className="text-red-400">{strategy.avgLoss.toFixed(2)}%</p>
-                            </div>
-                          </div>
-                        </div>
-                      )) : (
-                        <div className="text-center py-8 text-slate-400">
-                          <p>No strategy data yet</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-          
-          {/* Strategies Tab */}
-          <TabsContent value="strategies">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {strategies.length > 0 ? strategies.map((strategy) => (
-                <Card key={strategy.id} className="bg-slate-800/50 border-slate-700/50">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center justify-between">
-                      <span>{strategy.strategyName}</span>
-                      {strategy.successRate >= 80 && (
-                        <Award className="w-5 h-5 text-amber-400" />
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      {strategy.totalSignals} signals • {strategy.successCount} wins • {strategy.lossCount} losses
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-slate-400 text-sm">Success Rate</span>
-                        <span className={cn(
-                          "font-mono font-bold",
-                          strategy.successRate >= 60 ? "text-emerald-400" :
-                          strategy.successRate >= 40 ? "text-amber-400" : "text-red-400"
-                        )}>
-                          {strategy.successRate.toFixed(1)}%
-                        </span>
-                      </div>
-                      <Progress 
-                        value={strategy.successRate} 
-                        className="h-3 bg-slate-700"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="bg-emerald-500/10 p-2 rounded">
-                        <span className="text-slate-400 text-xs block">Avg Profit</span>
-                        <p className="text-emerald-400 font-mono font-semibold">
-                          {formatPercent(strategy.avgProfit)}
-                        </p>
-                      </div>
-                      <div className="bg-red-500/10 p-2 rounded">
-                        <span className="text-slate-400 text-xs block">Avg Loss</span>
-                        <p className="text-red-400 font-mono font-semibold">
-                          {formatPercent(strategy.avgLoss)}
-                        </p>
-                      </div>
-                      <div className="bg-slate-700/30 p-2 rounded">
-                        <span className="text-slate-400 text-xs block">Max Profit</span>
-                        <p className="text-emerald-400 font-mono">
-                          {formatPercent(strategy.maxProfit)}
-                        </p>
-                      </div>
-                      <div className="bg-slate-700/30 p-2 rounded">
-                        <span className="text-slate-400 text-xs block">Max Loss</span>
-                        <p className="text-red-400 font-mono">
-                          {formatPercent(strategy.maxLoss)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )) : (
-                <div className="col-span-full text-center py-12 text-slate-400">
-                  <PieChart className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>No strategy performance data yet</p>
-                  <p className="text-sm mt-2">Complete trades to build strategy statistics</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          {/* Watchlist Tab */}
-          <TabsContent value="watchlist">
             <Card className="bg-slate-800/50 border-slate-700/50">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  High Accuracy Watchlist
-                </CardTitle>
-                <CardDescription>Stocks with 80%+ success rate (minimum 5 signals)</CardDescription>
+                <CardTitle className="text-white">Learning Records</CardTitle>
               </CardHeader>
               <CardContent>
-                {watchlist.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {watchlist.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-4 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-lg border border-amber-500/30"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <span className="text-white font-bold text-lg">{item.stock.symbol}</span>
-                            {item.stock.name && (
-                              <p className="text-slate-400 text-sm">{item.stock.name}</p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-amber-400 font-mono font-bold text-xl">
-                              {item.successRate.toFixed(0)}%
-                            </div>
-                            <div className="text-slate-400 text-xs">Success Rate</div>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-slate-400">Signals:</span>
-                            <span className="text-white ml-1">{item.totalSignals}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Avg P&L:</span>
-                            <span className={cn("ml-1", item.avgPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
-                              {formatPercent(item.avgPnl)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 text-slate-400">
-                    <Award className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p>No high-accuracy stocks yet</p>
-                    <p className="text-sm mt-2">Stocks with 80%+ success rate will appear here</p>
-                  </div>
-                )}
+                <div className="text-center py-12 text-slate-400">
+                  <Brain className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>Learning data will appear after signal tracking completes.</p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </main>
-      
+
       {/* Footer */}
-      <footer className="border-t border-slate-700/50 bg-slate-900/90 py-4 mt-auto">
-        <div className="max-w-[1920px] mx-auto px-4 text-center text-sm text-slate-400">
-          Trading AI Agent • Nifty 500 • Swing Trading (5-Day Holding) • Learning System
+      <footer className="border-t border-slate-700/50 bg-slate-900/90 py-3 mt-auto">
+        <div className="max-w-[1920px] mx-auto px-4 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-4">
+            <span>🤖 Auto-Data: 6:00 PM IST</span>
+            <span>🎯 Auto-Signals: 6:30 PM IST</span>
+            <span>📊 Auto-Tracking: Hourly</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {automationStatus?.status === 'running' ? (
+              <><Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" /><span>Automation Active</span></>
+            ) : (
+              <><Circle className="w-2 h-2 fill-red-400 text-red-400" /><span>Automation Offline</span></>
+            )}
+          </div>
         </div>
       </footer>
     </div>
-  );
-}
-
-// ============================================
-// HELPER COMPONENTS
-// ============================================
-
-function StatsCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  color: 'emerald' | 'red' | 'amber' | 'blue' | 'purple';
-}) {
-  const colorClasses = {
-    emerald: 'text-emerald-400 from-emerald-500/20 to-emerald-500/5',
-    red: 'text-red-400 from-red-500/20 to-red-500/5',
-    amber: 'text-amber-400 from-amber-500/20 to-amber-500/5',
-    blue: 'text-blue-400 from-blue-500/20 to-blue-500/5',
-    purple: 'text-purple-400 from-purple-500/20 to-purple-500/5',
-  };
-  
-  return (
-    <Card className={`bg-gradient-to-br ${colorClasses[color]} border-slate-700/50`}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-slate-400 text-xs">{title}</span>
-          <span className={colorClasses[color].split(' ')[0]}>{icon}</span>
-        </div>
-        <p className={`text-2xl font-bold ${colorClasses[color].split(' ')[0]}`}>
-          {value}
-        </p>
-      </CardContent>
-    </Card>
   );
 }

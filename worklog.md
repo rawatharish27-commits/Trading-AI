@@ -314,3 +314,99 @@ SYSTEM_PROMPT = `
 3. **Load Data**: Click "Load Data" button
 4. **Generate Signals**: Click "Generate Signals" button
 5. **View Signals**: Check Signals tab in dashboard
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fully Automate the Trading System
+
+Work Log:
+- Created automation service (`/mini-services/automation-service/index.ts`)
+  - Scheduled data fetch (Daily at 6:00 PM IST)
+  - Scheduled signal generation (Daily at 6:30 PM IST)
+  - Scheduled signal tracking (Hourly during market hours)
+  - Scheduled learning (Weekly on Sunday)
+  
+- Created automation API route (`/src/app/api/automation/route.ts`)
+  - Manual triggers for all automation tasks
+  - Status endpoint
+  - Health check endpoint
+
+- Updated dashboard (`/src/app/page.tsx`)
+  - Auto-refresh every 30 seconds
+  - Automation status indicator
+  - One-click "Run All" button
+  - Individual automation control buttons
+  - Scheduled tasks display in footer
+
+Stage Summary:
+- **Automation Service**: Running on port 3030
+- **Scheduled Tasks**: Data fetch, Signal generation, Tracking, Learning
+- **Auto-Refresh**: Dashboard updates every 30 seconds
+- **Manual Triggers**: All tasks can be triggered manually
+
+## 🤖 Automation Schedule
+
+| Task | Schedule (IST) | Description |
+|------|---------------|-------------|
+| Data Fetch | 6:00 PM Daily | Fetch latest stock data from Yahoo Finance |
+| Signal Generation | 6:30 PM Daily | Generate signals for all stocks (80%+ confidence) |
+| Signal Tracking | Hourly | Track active signals, check SL/Target |
+| Learning | Sunday 7:00 PM | Analyze closed trades, update strategies |
+
+## 📡 Automation API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/automation?action=status` | GET | Automation service status |
+| `/api/automation` (body: {action: 'fetch-data'}) | POST | Manual data fetch |
+| `/api/automation` (body: {action: 'generate-signals'}) | POST | Manual signal generation |
+| `/api/automation` (body: {action: 'track-signals'}) | POST | Manual signal tracking |
+| `/api/automation` (body: {action: 'run-learning'}) | POST | Manual learning run |
+| `/api/automation` (body: {action: 'run-all'}) | POST | Run all automation tasks |
+
+## 🏗️ System Architecture (Automated)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     AUTOMATION SERVICE (Port 3030)               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐          │
+│   │  Scheduler  │   │  Data       │   │  Signal     │          │
+│   │  (Cron)     │──▶│  Fetcher    │──▶│  Generator  │          │
+│   └─────────────┘   └─────────────┘   └─────────────┘          │
+│          │                                    │                  │
+│          │              ┌─────────────┐       │                  │
+│          └─────────────▶│  Tracker    │◀──────┘                  │
+│                         └─────────────┘                          │
+│                                │                                 │
+│                         ┌──────▼──────┐                         │
+│                         │  Learning   │                         │
+│                         │  System     │                         │
+│                         └─────────────┘                         │
+│                                                                    │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                     NEXT.JS DASHBOARD (Port 3000)                │
+├──────────────────────────────────────────────────────────────────┤
+│  • Auto-refresh every 30 seconds                                 │
+│  • Real-time signal updates                                      │
+│  • Manual automation controls                                    │
+│  • Strategy performance tracking                                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## ✅ Automation Checklist
+
+- [x] Automation service created
+- [x] Cron jobs configured (IST timezone)
+- [x] Data fetch automation
+- [x] Signal generation automation
+- [x] Signal tracking automation
+- [x] Learning system automation
+- [x] Dashboard auto-refresh
+- [x] Manual trigger buttons
+- [x] Status indicators
