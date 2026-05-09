@@ -1,0 +1,51 @@
+# Trading AI Agent - Local Development Docker Compose
+# PostgreSQL + Redis for local development
+
+version: '3.8'
+
+services:
+  # ============================================
+  # POSTGRESQL DATABASE (Local)
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: trading-postgres-local
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=trader
+      - POSTGRES_PASSWORD=trading123
+      - POSTGRES_DB=trading_ai
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-local-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d trading_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # REDIS CACHE (Optional - for better performance)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: trading-redis-local
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-local-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-local-data:
+    driver: local
+  redis-local-data:
+    driver: local

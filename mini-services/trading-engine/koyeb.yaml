@@ -1,0 +1,38 @@
+# Koyeb Configuration for Trading AI Backend
+# FREE $5.50 credit/month - ALWAYS RUNNING!
+
+app: trading-ai-backend
+
+services:
+  - name: api
+    instance_type: free
+    regions:
+      - fra  # Frankfurt (closest to India)
+    ports:
+      - port: 8080
+        protocol: http
+    health:
+      grace_period: 10
+      interval: 30
+      path: /health
+    routes:
+      - path: /
+        port: 8080
+    environment:
+      - name: PORT
+        value: "8080"
+      - name: PYTHON_VERSION
+        value: "3.11"
+      - name: DEBUG
+        value: "false"
+      - name: PAPER_TRADING
+        value: "true"
+    scaling:
+      min: 1
+      max: 1
+    
+# Secrets (set in Koyeb dashboard):
+# - DATABASE_URL
+# - OPENAI_API_KEY
+# - OPENAI_BASE_URL
+# - LLM_MODEL

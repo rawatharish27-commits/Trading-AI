@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: trading-ai-agent
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    # Disable build cache to ensure fresh builds
+    numBuildCacheKeep: 0
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_ENABLED
+        value: false
+      - key: DEBUG
+        value: false
+      - key: PAPER_TRADING
+        value: true
