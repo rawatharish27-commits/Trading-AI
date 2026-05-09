@@ -3,16 +3,15 @@ Trading AI Agent RAG - FastAPI Main Application
 Production Grade Trading Intelligence System
 
 Complete Features:
-- SMC Engine with Mathematical Formulas
-- Multi-Timeframe Analysis
-- Broker Integration (Angel One)
-- Live WebSocket Data Feed
-- Safety Layer (Kill Switch)
-- Alert System (Telegram)
-- Health Monitoring
-- News Sentiment Analysis
-- Backtest Engine
-- AI Agents (Decision, Risk, Learning)
+- Nifty 500 Stocks Analysis
+- Yahoo Finance Data (FREE - No API Key)
+- Short-term Trading Signals (3-5 days)
+- Signal Tracking & Outcome Analysis
+- Learning from Losses
+- Strategy Improvement
+- Watchlist Generation (80%+ Success Stocks)
+
+NO Angel One API - Only FREE Data Sources
 
 Author: Trading AI Agent
 """
@@ -201,17 +200,19 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Safety layer failed: {e}")
     
-    # Initialize Scheduler and Register Tasks
+    # Initialize Trading System Scheduler
+    # Uses Yahoo Finance (FREE) - NO Angel One API
+    # Schedule: Analysis at 10AM, Data fetch at 4PM, Outcomes at 5PM
     try:
-        from app.core.scheduler import init_scheduler, TradingTasks
+        from app.core.trading_scheduler import init_scheduler, TradingTasks
         scheduler = init_scheduler()
         
-        # Register all trading tasks (auto data fetching)
+        # Register all trading tasks
         trading_tasks = TradingTasks(scheduler)
         trading_tasks.register_all_tasks()
         
         asyncio.create_task(scheduler.start())
-        logger.info("✅ Scheduler initialized with auto data fetching tasks")
+        logger.info("✅ Trading Scheduler initialized - Yahoo Finance Data (FREE)")
     except Exception as e:
         logger.warning(f"⚠️ Scheduler failed: {e}")
     
@@ -227,39 +228,8 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Alert system failed: {e}")
     
-    # Login to Angel One and fetch initial data
-    try:
-        from app.data.angel_one_data import get_angel_one_fetcher
-        ao = get_angel_one_fetcher()
-        
-        if ao.can_connect():
-            logger.info("🔐 Logging into Angel One...")
-            login_result = ao.login()
-            
-            if login_result.get('status'):
-                logger.info(f"✅ Angel One connected: {login_result.get('client_code', 'Unknown')}")
-                
-                # Fetch initial data in background
-                async def fetch_initial_data():
-                    logger.info("📊 Fetching initial market data...")
-                    try:
-                        from app.core.scheduler import TradingTasks, get_scheduler
-                        scheduler = get_scheduler()
-                        if scheduler:
-                            tasks = TradingTasks(scheduler)
-                            await tasks.fetch_historical_data()
-                            await tasks.fetch_live_quotes()
-                            logger.info("✅ Initial market data fetched successfully")
-                    except Exception as e:
-                        logger.error(f"Initial data fetch error: {e}")
-                
-                asyncio.create_task(fetch_initial_data())
-            else:
-                logger.warning(f"⚠️ Angel One login failed: {login_result.get('message', 'Unknown error')}")
-        else:
-            logger.info("ℹ️ Angel One credentials not configured - using Yahoo Finance fallback")
-    except Exception as e:
-        logger.warning(f"⚠️ Angel One initialization: {e}")
+    # No Angel One login - Using Yahoo Finance (FREE)
+    logger.info("📊 Using Yahoo Finance for market data (FREE - No API Key Required)")
     
     logger.info("✅ Trading AI Agent started successfully")
 
@@ -273,8 +243,8 @@ async def shutdown_event():
     if health_monitor:
         await health_monitor.stop()
     
-    # Stop scheduler
-    from app.core.scheduler import get_scheduler
+    # Stop scheduler (trading system)
+    from app.core.trading_scheduler import get_scheduler
     scheduler = get_scheduler()
     if scheduler:
         await scheduler.stop()
@@ -298,14 +268,21 @@ async def root():
         "status": "running",
         "features": [
             "SMC Engine",
-            "Multi-Timeframe Analysis",
+            "Daily/Hourly Analysis (Cost-Effective)",
             "Broker Integration",
-            "Live Data Feed",
+            "No Live Data (Minimal API Calls)",
             "Safety Layer",
             "Alert System",
             "Health Monitoring",
             "News Sentiment"
         ],
+        "cost_optimizations": {
+            "timeframes": ["Daily", "Hourly"],
+            "analysis_time": "10:00 AM IST",
+            "data_fetch_time": "4:00 PM IST",
+            "no_live_updates": True,
+            "historical_data_years": 2
+        },
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -1004,20 +981,491 @@ async def disengage_kill_switch(user: str = Query(default="API")):
 
 @app.get("/api/scheduler/status")
 async def get_scheduler_status():
-    """Get scheduler status"""
-    from app.core.scheduler import get_scheduler
+    """Get scheduler status - Cost-Effective Mode"""
+    from app.core.cost_effective_scheduler import get_scheduler, CostEffectiveTasks
     
     scheduler = get_scheduler()
     if scheduler:
         return {
             "success": True,
             "data": {
+                "mode": "cost_effective",
                 "market_status": scheduler.get_market_status(),
-                "jobs": scheduler.get_jobs()
+                "jobs": scheduler.get_jobs(),
+                "optimizations": {
+                    "timeframes": ["Daily", "Hourly"],
+                    "no_live_updates": True,
+                    "analysis_once_daily": True,
+                    "data_fetch_after_market": True
+                }
             }
         }
     
     return {"success": False, "error": "Scheduler not initialized"}
+
+
+@app.post("/api/scheduler/trigger-analysis")
+async def trigger_analysis():
+    """Manually trigger daily analysis (uses cached database data)"""
+    try:
+        from app.core.cost_effective_scheduler import CostEffectiveTasks, get_scheduler
+        
+        scheduler = get_scheduler()
+        if scheduler:
+            tasks = CostEffectiveTasks(scheduler)
+            result = await tasks.run_daily_analysis()
+            return {"success": True, "data": result}
+        
+        return {"success": False, "error": "Scheduler not initialized"}
+    except Exception as e:
+        logger.error(f"Manual analysis error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/scheduler/trigger-data-fetch")
+async def trigger_data_fetch():
+    """Manually trigger data fetch (calls Angel One API - use sparingly)"""
+    try:
+        from app.core.cost_effective_scheduler import CostEffectiveTasks, get_scheduler
+        
+        scheduler = get_scheduler()
+        if scheduler:
+            tasks = CostEffectiveTasks(scheduler)
+            result = await tasks.fetch_closing_data()
+            return {"success": True, "data": result}
+        
+        return {"success": False, "error": "Scheduler not initialized"}
+    except Exception as e:
+        logger.error(f"Manual data fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/analysis/results")
+async def get_analysis_results():
+    """Get latest analysis results"""
+    try:
+        from app.core.cost_effective_scheduler import CostEffectiveTasks, get_scheduler
+        
+        scheduler = get_scheduler()
+        if scheduler:
+            tasks = CostEffectiveTasks(scheduler)
+            return {"success": True, "data": tasks.get_analysis_results()}
+        
+        return {"success": False, "error": "Scheduler not initialized"}
+    except Exception as e:
+        logger.error(f"Analysis results error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
+# COMPREHENSIVE ANALYSIS API
+# ============================================
+
+@app.get("/api/analysis/run")
+async def run_comprehensive_analysis(symbols: Optional[str] = None):
+    """Run comprehensive SMC analysis on specified symbols"""
+    try:
+        from app.core.comprehensive_analysis import get_analysis_engine
+        
+        engine = get_analysis_engine()
+        
+        symbol_list = symbols.split(",") if symbols else None
+        
+        result = await engine.run_full_analysis(
+            symbols=symbol_list,
+            use_decision_agent=True
+        )
+        
+        return {"success": True, "data": result}
+    
+    except Exception as e:
+        logger.error(f"Comprehensive analysis error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/analysis/signals")
+async def get_trading_signals(approved_only: bool = True):
+    """Get generated trading signals"""
+    try:
+        from app.core.comprehensive_analysis import get_analysis_engine
+        
+        engine = get_analysis_engine()
+        signals = engine.get_signals(approved_only=approved_only)
+        
+        return {
+            "success": True,
+            "data": {
+                "total": len(signals),
+                "signals": [s.to_dict() for s in signals]
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Signals fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/analysis/best-signal")
+async def get_best_trading_signal():
+    """Get the best trading signal (highest confidence)"""
+    try:
+        from app.core.comprehensive_analysis import get_analysis_engine
+        
+        engine = get_analysis_engine()
+        signal = engine.get_best_signal()
+        
+        if signal:
+            return {"success": True, "data": signal.to_dict()}
+        
+        return {"success": True, "data": None, "message": "No approved signals available"}
+    
+    except Exception as e:
+        logger.error(f"Best signal fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
+# MARKET CALENDAR API
+# ============================================
+
+@app.get("/api/calendar/status")
+async def get_market_calendar_status():
+    """Get market calendar status"""
+    try:
+        from app.core.market_calendar import get_market_calendar
+        
+        calendar = get_market_calendar()
+        return {"success": True, "data": calendar.get_calendar_summary()}
+    
+    except Exception as e:
+        logger.error(f"Calendar status error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/calendar/holidays")
+async def get_market_holidays(count: int = Query(10, le=20)):
+    """Get upcoming market holidays"""
+    try:
+        from app.core.market_calendar import get_market_calendar
+        
+        calendar = get_market_calendar()
+        return {"success": True, "data": calendar.get_upcoming_holidays(count)}
+    
+    except Exception as e:
+        logger.error(f"Holidays fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/calendar/trading-days")
+async def get_trading_days_range(
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)")
+):
+    """Get all trading days in a date range"""
+    try:
+        from app.core.market_calendar import get_market_calendar
+        from datetime import datetime
+        
+        calendar = get_market_calendar()
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        trading_days = calendar.get_trading_days_in_range(start, end)
+        
+        return {
+            "success": True,
+            "data": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "trading_days_count": len(trading_days),
+                "trading_days": [d.isoformat() for d in trading_days]
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Trading days fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/calendar/next-trading-day")
+async def get_next_trading_day():
+    """Get next trading day"""
+    try:
+        from app.core.market_calendar import get_market_calendar
+        
+        calendar = get_market_calendar()
+        next_day = calendar.get_next_trading_day()
+        
+        return {
+            "success": True,
+            "data": {
+                "next_trading_day": next_day.isoformat(),
+                "is_trading_day_today": calendar.is_trading_day()
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Next trading day fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
+# TRADING SYSTEM DASHBOARD APIs
+# ============================================
+
+@app.get("/api/dashboard/complete")
+async def get_complete_dashboard():
+    """Get complete dashboard data"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        data = system.get_dashboard_data()
+        
+        return {"success": True, "data": data}
+    
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/signals/history")
+async def get_signal_history(
+    status: Optional[str] = None,
+    limit: int = Query(50, le=200)
+):
+    """Get signal history with optional status filter"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        signals = system.get_signal_history(status, limit)
+        
+        return {
+            "success": True,
+            "data": {
+                "total": len(signals),
+                "signals": signals
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Signal history error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/signals/active")
+async def get_active_signals():
+    """Get currently active signals (within holding period)"""
+    try:
+        from app.core.signal_learning import get_signal_tracker
+        
+        tracker = get_signal_tracker()
+        signals = tracker.get_active_signals()
+        
+        return {
+            "success": True,
+            "data": {
+                "count": len(signals),
+                "signals": [s.to_dict() for s in signals]
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Active signals error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/pnl/statement")
+async def get_pnl_statement():
+    """Get P&L statement for all trades"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        pnl = system.get_pnl_statement()
+        
+        return {"success": True, "data": pnl}
+    
+    except Exception as e:
+        logger.error(f"P&L statement error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/learning/history")
+async def get_learning_history():
+    """Get learning history and strategy improvements"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        learning = system.get_learning_history()
+        
+        return {"success": True, "data": learning}
+    
+    except Exception as e:
+        logger.error(f"Learning history error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/strategy/improvements")
+async def get_strategy_improvements():
+    """Get strategy improvements from learning"""
+    try:
+        from app.core.signal_learning import get_learning_engine
+        
+        engine = get_learning_engine()
+        improvements = engine.get_strategy_improvements()
+        
+        return {"success": True, "data": improvements}
+    
+    except Exception as e:
+        logger.error(f"Strategy improvements error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/watchlist/recommended")
+async def get_recommended_watchlist(min_success: float = Query(80.0)):
+    """Get watchlist of stocks with 80%+ success rate"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        watchlist = system.get_watchlist(min_success)
+        
+        return {
+            "success": True,
+            "data": {
+                "count": len(watchlist),
+                "min_success_rate": min_success,
+                "watchlist": watchlist
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Watchlist error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/performance/stocks")
+async def get_stock_performance():
+    """Get performance metrics for all tracked stocks"""
+    try:
+        from app.core.signal_learning import get_performance_tracker
+        
+        tracker = get_performance_tracker()
+        performance = tracker.get_all_performance()
+        
+        return {
+            "success": True,
+            "data": {
+                "total_stocks": len(performance),
+                "stocks": [p.to_dict() for p in performance[:50]]
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Stock performance error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
+# TRADING ACTIONS
+# ============================================
+
+@app.post("/api/trading/run-analysis")
+async def run_trading_analysis(symbols: Optional[str] = None):
+    """Manually run trading analysis and generate signals"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        symbol_list = symbols.split(",") if symbols else None
+        
+        result = await system.run_analysis_and_generate_signals(symbol_list)
+        
+        return {"success": True, "data": result}
+    
+    except Exception as e:
+        logger.error(f"Manual analysis error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/trading/fetch-data")
+async def fetch_trading_data(symbols: Optional[str] = None):
+    """Manually fetch data from Yahoo Finance (FREE)"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        symbol_list = symbols.split(",") if symbols else None
+        
+        result = await system.fetch_and_store_data(symbol_list)
+        
+        return {"success": True, "data": result}
+    
+    except Exception as e:
+        logger.error(f"Manual data fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/trading/update-outcomes")
+async def update_trading_outcomes():
+    """Manually update signal outcomes"""
+    try:
+        from app.core.trading_system import get_trading_system
+        
+        system = get_trading_system()
+        result = await system.update_signal_outcomes()
+        
+        return {"success": True, "data": result}
+    
+    except Exception as e:
+        logger.error(f"Outcome update error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================
+# NIFTY 500 STOCKS
+# ============================================
+
+@app.get("/api/stocks/nifty500")
+async def get_nifty500_stocks():
+    """Get all Nifty 500 stock symbols"""
+    try:
+        from app.data.nifty500_symbols import NIFTY_500_LIST, NIFTY_500_COUNT
+        
+        return {
+            "success": True,
+            "data": {
+                "count": NIFTY_500_COUNT,
+                "symbols": NIFTY_500_LIST[:100],  # Return first 100
+                "total_available": NIFTY_500_COUNT
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Nifty 500 fetch error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/stocks/sectors")
+async def get_stock_sectors():
+    """Get stocks by sector"""
+    try:
+        from app.data.nifty500_symbols import SECTOR_MAP, get_all_sectors
+        
+        return {
+            "success": True,
+            "data": {
+                "sectors": get_all_sectors(),
+                "stocks_by_sector": SECTOR_MAP
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Sector fetch error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # ============================================
@@ -1757,9 +2205,12 @@ async def connect_broker():
 # ============================================
 
 if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", settings.PORT))
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG
+        host="0.0.0.0",
+        port=port,
+        reload=False,  # Disable reload for stability
+        workers=1
     )

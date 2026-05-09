@@ -1,5 +1,5 @@
-// Trading AI Agent RAG - Production Database Schema
-// Phase 1: System Foundation
+// Trading AI Agent - Complete Database Schema
+// Nifty 500 Stocks | Swing Trading | Learning System
 
 generator client {
   provider = "prisma-client-js"
@@ -11,583 +11,390 @@ datasource db {
 }
 
 // ============================================
-// CORE ENTITIES
+// NIFTY 500 STOCKS
 // ============================================
 
-// Stock/Symbol Management
-model Symbol {
+model Stock {
   id            String   @id @default(cuid())
   symbol        String   @unique
   name          String?
-  exchange      String   @default("NSE")
   sector        String?
+  industry      String?
+  marketCap     String?  // LARGE, MID, SMALL
   isActive      Boolean  @default(true)
-  lotSize       Int      @default(1)
-  tickSize      Float    @default(0.05)
+  nseToken      String?
+  yahooSymbol   String?  // For Yahoo Finance (e.g., "RELIANCE.NS")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  candles       Candle[]
-  swings        Swing[]
-  structures    Structure[]
-  liquidityZones LiquidityZone[]
-  orderBlocks   OrderBlock[]
-  fvgs          FVG[]
-  trades        Trade[]
-  watchlistItems WatchlistItem[]
+  dailyCandles  DailyCandle[]
+  hourlyCandles HourlyCandle[]
+  signals       TradeSignal[]
+  watchlistItem WatchlistItem?
+  performance   StockPerformance?
 
   @@index([symbol])
   @@index([isActive])
-}
-
-// OHLCV Candle Data
-model Candle {
-  id          String   @id @default(cuid())
-  symbolId    String
-  symbol      Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe   String   // 1m, 5m, 15m, 1h, 4h, 1d
-  timestamp   DateTime
-  open        Float
-  high        Float
-  low         Float
-  close       Float
-  volume      Float
-  createdAt   DateTime @default(now())
-
-  @@unique([symbolId, timeframe, timestamp])
-  @@index([symbolId, timeframe, timestamp])
+  @@index([sector])
 }
 
 // ============================================
-// SMC ENGINE - Smart Money Concepts
+// MARKET DATA - DAILY & HOURLY
 // ============================================
 
-// Swing High/Low Points
-model Swing {
-  id          String   @id @default(cuid())
-  symbolId    String
-  symbol      Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe   String
-  timestamp   DateTime
-  type        String   // HIGH, LOW
-  price       Float
-  strength    Int      @default(3) // Number of candles on each side
-  confirmed   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+model DailyCandle {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id])
+  date      DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  oi        Float?   // Open Interest
+  
+  // Technical Indicators (calculated)
+  ema20     Float?
+  ema50     Float?
+  ema200    Float?
+  rsi14     Float?
+  atr14     Float?
+  adx14     Float?
+  macd      Float?
+  macdSignal Float?
+  macdHist  Float?
+  
+  createdAt DateTime @default(now())
 
-  @@index([symbolId, timeframe, timestamp])
+  @@unique([stockId, date])
+  @@index([stockId, date])
 }
 
-// Market Structure (BOS, CHoCH, HH, HL, LH, LL)
-model Structure {
-  id              String   @id @default(cuid())
-  symbolId        String
-  symbol          Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe       String
-  timestamp       DateTime
-  type            String   // BOS, CHOCH, HH, HL, LH, LL
-  direction       String   // BULLISH, BEARISH
-  price           Float
-  swingId         String?  // Reference to the swing point
-  brokenLevel     Float?   // The level that was broken
-  confirmed       Boolean  @default(false)
-  createdAt       DateTime @default(now())
+model HourlyCandle {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id])
+  timestamp DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  
+  createdAt DateTime @default(now())
 
-  @@index([symbolId, timeframe, timestamp])
-  @@index([type, direction])
-}
-
-// Liquidity Zones
-model LiquidityZone {
-  id              String   @id @default(cuid())
-  symbolId        String
-  symbol          Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe       String
-  type            String   // EQUAL_HIGHS, EQUAL_LOWS, BUY_SIDE, SELL_SIDE
-  priceLevel      Float
-  tolerance       Float    @default(0.1) // Percentage tolerance
-  volume          Float?
-  swept           Boolean  @default(false)
-  sweptAt         DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([symbolId, timeframe, swept])
-}
-
-// Order Blocks
-model OrderBlock {
-  id              String   @id @default(cuid())
-  symbolId        String
-  symbol          Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe       String
-  type            String   // BULLISH, BEARISH
-  highPrice       Float
-  lowPrice        Float
-  candleIndex     Int      // Index of the OB candle
-  volume          Float
-  mitagated       Boolean  @default(false)
-  mitigatedAt     DateTime?
-  retested        Boolean  @default(false)
-  retestedAt      DateTime?
-  strength        Float    @default(1.0) // Based on impulse move
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([symbolId, timeframe, mitagated])
-}
-
-// Fair Value Gaps
-model FVG {
-  id              String   @id @default(cuid())
-  symbolId        String
-  symbol          Symbol   @relation(fields: [symbolId], references: [id])
-  timeframe       String
-  type            String   // BULLISH, BEARISH
-  gapTop          Float
-  gapBottom       Float
-  candleIndex     Int
-  filled          Boolean  @default(false)
-  filledAt        DateTime?
-  fillPercentage  Float    @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([symbolId, timeframe, filled])
+  @@unique([stockId, timestamp])
+  @@index([stockId, timestamp])
 }
 
 // ============================================
-// CONFLUENCE & SETUPS
+// DATA SESSION TRACKING
 // ============================================
 
-// Trade Setup Candidates
-model TradeSetup {
-  id              String   @id @default(cuid())
-  symbolId        String
-  timeframe       String
-  timestamp       DateTime
-  direction       String   // LONG, SHORT
-  
-  // Confluence Scores
-  liquiditySweep  Boolean  @default(false)
-  liquidityScore  Int      @default(0)
-  bosScore        Int      @default(0)
-  obScore         Int      @default(0)
-  fvgScore        Int      @default(0)
-  volumeScore     Int      @default(0)
-  totalScore      Int      @default(0)
-  
-  // Market Context
-  htfBias         String?  // BULLISH, BEARISH
-  mtfStructure    String?
-  regime          String?  // TRENDING, RANGING, VOLATILE
-  
-  // Entry Details
-  entryPrice      Float?
-  stopLoss        Float?
-  takeProfit      Float?
-  riskReward      Float?
-  
-  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, EXECUTED, CLOSED
-  aiDecision      String?  // APPROVED, REJECTED
-  aiReasoning     String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([status, timestamp])
+model DataSession {
+  id            String   @id @default(cuid())
+  lastDate      DateTime // Last date data was fetched
+  timeframe     String   // DAILY, HOURLY
+  stocksUpdated Int      @default(0)
+  status        String   @default("COMPLETED") // RUNNING, COMPLETED, FAILED
+  error         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // ============================================
-// TRADING & EXECUTION
+// TRADE SIGNALS (Generated by AI)
 // ============================================
 
-// Executed Trades
-model Trade {
+model TradeSignal {
   id              String   @id @default(cuid())
-  symbolId        String
-  symbol          Symbol   @relation(fields: [symbolId], references: [id])
-  setupId         String?
+  stockId         String
+  stock           Stock    @relation(fields: [stockId], references: [id])
   
-  // Trade Details
-  direction       String   // LONG, SHORT
-  status          String   @default("OPEN") // OPEN, CLOSED, CANCELLED
+  // Signal Details
+  signalType      String   // BUY, SELL
+  status          String   @default("PENDING") // PENDING, ACTIVE, SUCCESS, LOSS, CANCELLED
+  confidence      Float    // 0-100 (must be >= 80 to be generated)
+  
+  // Entry/Exit
   entryPrice      Float
-  exitPrice       Float?
-  quantity        Float
   stopLoss        Float
-  takeProfit      Float?
+  targetPrice     Float
+  riskReward      Float
   
-  // P&L
-  pnl             Float?
-  pnlPercent      Float?
-  fees            Float    @default(0)
+  // Analysis Context
+  timeframe       String   // DAILY, HOURLY
+  trendDirection  String?  // BULLISH, BEARISH
+  regime          String?  // TRENDING, RANGING
+  confluenceScore Float?   // Combined score from multiple indicators
   
-  // Risk Management
-  riskPercent     Float    @default(1.0)
-  riskAmount      Float?
+  // Reasoning
+  reasoning       String?  // AI analysis reasoning
+  indicators      String?  // JSON of indicator values at signal time
   
-  // Execution Details
-  brokerOrderId   String?
-  executedAt      DateTime @default(now())
+  // Dates
+  generatedAt     DateTime @default(now())
+  validTill       DateTime? // 5 trading days from generation
+  activatedAt     DateTime?
   closedAt        DateTime?
   
-  // Metadata
-  tags            String?  // JSON array of tags
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  learningRecords LearningRecord[]
+  // Tracking
+  tracking        SignalTracking?
   
-  @@index([status, executedAt])
-  @@index([symbolId])
+  @@index([status, generatedAt])
+  @@index([stockId])
 }
 
 // ============================================
-// AGENT SYSTEM
+// SIGNAL TRACKING (5-Day Holding)
 // ============================================
 
-// Agent Decisions Log
-model AgentDecision {
+model SignalTracking {
   id              String   @id @default(cuid())
-  agentType       String   // RESEARCH, STRATEGY, DECISION, RISK, EXECUTION, MONITORING, LEARNING
-  symbol          String?
-  setupId         String?
+  signalId        String   @unique
+  signal          TradeSignal @relation(fields: [signalId], references: [id])
   
-  // Input/Output
-  inputJson       String   // JSON string of input data
-  outputJson      String   // JSON string of output/decision
-  decision        String?  // APPROVE, REJECT, BUY, SELL, HOLD
+  // Tracking Dates
+  day1Date        DateTime?
+  day1High        Float?
+  day1Low         Float?
+  day1Close       Float?
   
-  // Context
-  confidence      Float?
-  reasoning       String?
+  day2Date        DateTime?
+  day2High        Float?
+  day2Low         Float?
+  day2Close       Float?
   
-  processingTime  Int?     // milliseconds
+  day3Date        DateTime?
+  day3High        Float?
+  day3Low         Float?
+  day3Close       Float?
+  
+  day4Date        DateTime?
+  day4High        Float?
+  day4Low         Float?
+  day4Close       Float?
+  
+  day5Date        DateTime?
+  day5High        Float?
+  day5Low         Float?
+  day5Close       Float?
+  
+  // Result
+  maxProfit       Float?   // Maximum profit % during holding
+  maxLoss         Float?   // Maximum loss % during holding
+  finalResult     String?  // SUCCESS, LOSS, BREAKEVEN
+  finalPnlPercent Float?
+  
+  // Learning
+  analyzedForLearning Boolean @default(false)
+  
   createdAt       DateTime @default(now())
-
-  @@index([agentType, createdAt])
+  updatedAt       DateTime @updatedAt
 }
 
 // ============================================
 // LEARNING SYSTEM
 // ============================================
 
-// Learning Memory - Trade Results
 model LearningRecord {
   id              String   @id @default(cuid())
-  tradeId         String?
-  trade           Trade?   @relation(fields: [tradeId], references: [id])
+  
+  // Signal Reference
+  signalId        String?
   
   // Setup Characteristics
-  setupType       String   // OB_RETEST, LIQUIDITY_SWEEP, BOS, etc.
-  trendDirection  String?  // BULLISH, BEARISH
-  regime          String?  // TRENDING, RANGING, VOLATILE
-  volatility      String?  // HIGH, NORMAL, LOW
+  setupType       String   // BREAKOUT, PULLBACK, REVERSAL, etc.
+  trendDirection  String?
+  regime          String?
   volumeProfile   String?  // HIGH, NORMAL, LOW
-  htfAlignment    Boolean?
   
-  // Time Context
-  session         String?  // PRE_MARKET, OPENING, MORNING, AFTERNOON, CLOSING
+  // Context
+  sector          String?
+  marketCap       String?
   dayOfWeek       Int?     // 0-6
+  month           Int?     // 1-12
   
   // Result
-  result          String   // WIN, LOSS, BREAKEVEN
+  result          String   // SUCCESS, LOSS, BREAKEVEN
   pnlPercent      Float?
-  holdTime        Int?     // minutes
+  maxDrawdown     Float?   // Max loss during trade
+  maxProfit       Float?   // Max profit during trade
   
-  // Learning Score
-  setupScore      Float?   // Calculated win rate for this setup type
-  confidence      Float?
+  // Learning Insights
+  whatWorked      String?  // What went right
+  whatFailed      String?  // What went wrong
+  improvement     String?  // How to improve
   
   createdAt       DateTime @default(now())
-
+  
   @@index([setupType, result])
-  @@index([regime, setupType])
+  @@index([result])
 }
 
-// Probability Table - Aggregated Learning
-model ProbabilityTable {
+model StrategyPerformance {
   id              String   @id @default(cuid())
-  setupType       String
-  regime          String?
-  trendDirection  String?
-  volumeProfile   String?
+  
+  // Strategy Identity
+  strategyName    String   @unique
+  description     String?
   
   // Statistics
-  totalTrades     Int      @default(0)
-  wins            Int      @default(0)
-  losses          Int      @default(0)
-  winRate         Float    @default(0)
-  avgPnl          Float    @default(0)
-  avgHoldTime     Int?
+  totalSignals    Int      @default(0)
+  successCount    Int      @default(0)
+  lossCount       Int      @default(0)
+  breakevenCount  Int      @default(0)
+  successRate     Float    @default(0)
   
+  // Performance Metrics
+  avgProfit       Float    @default(0)
+  avgLoss         Float    @default(0)
+  avgHoldDays     Float    @default(0)
+  maxProfit       Float    @default(0)
+  maxLoss         Float    @default(0)
+  profitFactor    Float    @default(0)
+  
+  // Risk Metrics
+  avgRiskReward   Float    @default(0)
+  avgDrawdown     Float    @default(0)
+  
+  // Learning
+  lastLearnedAt   DateTime?
+  improvementLog  String?  // JSON array of improvements made
+  
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  @@unique([setupType, regime, trendDirection, volumeProfile])
 }
 
-// ============================================
-// RISK MANAGEMENT
-// ============================================
-
-// Risk Configuration
-model RiskConfig {
-  id                  String   @id @default(cuid())
-  name                String   @unique
-  
-  // Position Sizing
-  maxRiskPerTrade     Float    @default(1.0)  // % of capital
-  maxDailyLoss        Float    @default(3.0)  // % of capital
-  maxWeeklyLoss       Float    @default(6.0)  // % of capital
-  maxDrawdown         Float    @default(10.0) // % of capital
-  
-  // Trade Limits
-  maxTradesPerDay     Int      @default(3)
-  maxOpenPositions    Int      @default(3)
-  maxCorrelatedPos    Int      @default(1)
-  
-  // Risk/Reward
-  minRiskReward       Float    @default(1.5)
-  
-  // Time Restrictions
-  tradingStartTime    String?  @default("09:15")
-  tradingEndTime      String?  @default("15:30")
-  noTradeDays         String?  // JSON array of days
-  
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-// Daily Risk State
-model DailyRiskState {
+model StockPerformance {
   id              String   @id @default(cuid())
-  date            DateTime @unique
+  stockId         String   @unique
+  stock           Stock    @relation(fields: [stockId], references: [id])
   
-  // Daily Metrics
-  startingCapital Float
-  currentCapital  Float
-  dailyPnL        Float    @default(0)
-  dailyLoss       Float    @default(0)
-  dailyTrades     Int      @default(0)
-  openPositions   Int      @default(0)
+  // Signal Statistics
+  totalSignals    Int      @default(0)
+  successCount    Int      @default(0)
+  lossCount       Int      @default(0)
+  successRate     Float    @default(0)
   
-  // Limits Reached
-  dailyLossLimit  Boolean  @default(false)
-  tradeLimitHit   Boolean  @default(false)
-  tradingHalted   Boolean  @default(false)
-  haltReason      String?
+  // Performance
+  totalPnl        Float    @default(0)
+  avgPnl          Float    @default(0)
+  maxProfit       Float    @default(0)
+  maxLoss         Float    @default(0)
+  
+  // Tracking
+  lastSignalAt    DateTime?
+  lastSuccessAt   DateTime?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  @@index([date])
 }
 
 // ============================================
-// WATCHLIST & SCANNING
+// WATCHLIST (80%+ Success Rate)
 // ============================================
 
 model Watchlist {
   id          String   @id @default(cuid())
-  name        String
+  name        String   @default("High Accuracy Stocks")
   description String?
   isDefault   Boolean  @default(false)
+  
+  items       WatchlistItem[]
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  items       WatchlistItem[]
-
-  @@index([isDefault])
 }
 
 model WatchlistItem {
   id          String   @id @default(cuid())
   watchlistId String
   watchlist   Watchlist @relation(fields: [watchlistId], references: [id])
-  symbolId    String
-  symbol      Symbol   @relation(fields: [symbolId], references: [id])
+  stockId     String   @unique
+  stock       Stock    @relation(fields: [stockId], references: [id])
   
-  // Scan Results
-  scanScore   Int      @default(0)
-  scanReason  String?
-  lastScanned DateTime?
+  // Performance Summary
+  successRate Float    @default(0)
+  totalSignals Int     @default(0)
+  avgPnl      Float    @default(0)
   
+  // Status
   addedAt     DateTime @default(now())
-
-  @@unique([watchlistId, symbolId])
+  lastUpdated DateTime @default(now())
 }
 
 // ============================================
-// SYSTEM LOGS & MONITORING
+// MARKET CALENDAR (NSE)
+// ============================================
+
+model TradingDay {
+  id          String   @id @default(cuid())
+  date        DateTime @unique
+  isTrading   Boolean  @default(true)
+  isHoliday   Boolean  @default(false)
+  holidayName String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([date])
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  value           String
+  description     String?
+  
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// SYSTEM LOGS
 // ============================================
 
 model SystemLog {
   id          String   @id @default(cuid())
-  level       String   // INFO, WARNING, ERROR, CRITICAL
-  category    String   // DATA, SMC, AGENT, EXECUTION, RISK, SYSTEM
+  level       String   // INFO, WARNING, ERROR
+  category    String   // DATA, ANALYSIS, SIGNAL, LEARNING, SYSTEM
   message     String
-  details     String?  // JSON string for additional data
+  details     String?  // JSON
   symbol      String?
   
   createdAt   DateTime @default(now())
-
+  
   @@index([level, category, createdAt])
-  @@index([createdAt])
-}
-
-model SystemMetric {
-  id          String   @id @default(cuid())
-  name        String
-  value       Float
-  unit        String?
-  tags        String?  // JSON string
-  
-  recordedAt  DateTime @default(now())
-
-  @@index([name, recordedAt])
 }
 
 // ============================================
-// BACKTESTING
+// ANALYSIS RUN HISTORY
 // ============================================
 
-model BacktestRun {
+model AnalysisRun {
   id              String   @id @default(cuid())
-  name            String
-  symbol          String
-  timeframe       String
+  type            String   // FULL, INCREMENTAL
+  status          String   // RUNNING, COMPLETED, FAILED
   
-  // Date Range
-  startDate       DateTime
-  endDate         DateTime
-  
-  // Configuration
-  configJson      String   // JSON of backtest parameters
+  // Scope
+  stocksAnalyzed  Int      @default(0)
+  timeframe       String?  // DAILY, HOURLY, BOTH
   
   // Results
-  totalTrades     Int      @default(0)
-  winningTrades   Int      @default(0)
-  losingTrades    Int      @default(0)
-  winRate         Float    @default(0)
-  totalPnL        Float    @default(0)
-  maxDrawdown     Float    @default(0)
-  expectancy      Float    @default(0)
-  profitFactor    Float    @default(0)
-  sharpeRatio     Float?
+  signalsGenerated Int     @default(0)
+  highAccuracySignals Int  @default(0) // 80%+ confidence
   
-  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
-  
-  startedAt       DateTime?
+  // Timing
+  startedAt       DateTime @default(now())
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-
-  @@index([status])
-}
-
-model BacktestTrade {
-  id              String   @id @default(cuid())
-  backtestRunId   String
+  durationMs      Int?
   
-  // Trade Details
-  symbol          String
-  direction       String
-  entryTime       DateTime
-  exitTime        DateTime?
-  entryPrice      Float
-  exitPrice       Float?
-  stopLoss        Float
-  takeProfit      Float?
+  error           String?
   
-  // Results
-  pnl             Float?
-  result          String?  // WIN, LOSS, BREAKEVEN
-  holdTime        Int?     // minutes
-  
-  // Setup Info
-  setupType       String?
-  setupScore      Float?
-  confluenceJson  String?  // JSON of confluence factors
-  
-  createdAt       DateTime @default(now())
-
-  @@index([backtestRunId])
-}
-
-// ============================================
-// MARKET REGIME
-// ============================================
-
-model MarketRegime {
-  id              String   @id @default(cuid())
-  symbol          String
-  timeframe       String
-  timestamp       DateTime
-  
-  regime          String   // TRENDING, RANGING, VOLATILE
-  trendStrength   Float    // 0-100
-  volatility      Float    // ATR-based
-  atr             Float
-  emaSpread       Float?   // EMA50-EMA200 distance
-  
-  // Regime Details
-  avgRange        Float?
-  rangeRatio      Float?   // Current range vs average
-  
-  createdAt       DateTime @default(now())
-
-  @@unique([symbol, timeframe, timestamp])
-  @@index([symbol, timeframe, timestamp])
-}
-
-// ============================================
-// BROKER INTEGRATION
-// ============================================
-
-model BrokerConnection {
-  id              String   @id @default(cuid())
-  broker          String   // ANGEL_ONE, ZERODHA, etc.
-  userId          String
-  apiKey          String?
-  apiSecret       String?  // Encrypted
-  accessToken     String?  // Encrypted
-  refreshToken    String?  // Encrypted
-  tokenExpiry     DateTime?
-  
-  isActive        Boolean  @default(true)
-  lastConnected   DateTime?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([broker, userId])
-}
-
-model BrokerOrder {
-  id              String   @id @default(cuid())
-  brokerConnId    String
-  
-  // Order Details
-  brokerOrderId   String
-  symbol          String
-  orderType       String   // MARKET, LIMIT, SL, SL-M
-  side            String   // BUY, SELL
-  quantity        Float
-  price           Float?
-  triggerPrice    Float?
-  
-  // Status
-  status          String   // PENDING, PLACED, EXECUTED, CANCELLED, REJECTED
-  filledQuantity  Float    @default(0)
-  avgPrice        Float?
-  
-  // Response
-  brokerResponse  String?  // JSON of broker response
-  
-  placedAt        DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([brokerConnId, status])
+  @@index([type, startedAt])
 }

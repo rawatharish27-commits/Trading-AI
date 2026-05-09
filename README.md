@@ -1,141 +1,364 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+# 🤖 Trading AI Agent - Nifty 500
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+**AI-powered Trading System for Nifty 500 Stocks with Local LLM Brain**
 
-## ✨ Technology Stack
+## 📋 Features
 
-This scaffold provides a robust foundation built with:
+- **Nifty 500 Stocks** - Full coverage of Indian stock market
+- **Yahoo Finance Data** - Free, real-time market data (no API key required)
+- **Local LLM Brain** - AI-powered trading decisions
+- **Smart Money Concepts (SMC)** - Professional trading analysis
+- **80%+ Confidence Filter** - High probability trade signals
+- **5-Day Swing Trading** - Short-term position tracking
+- **Learning System** - Self-improving from trade outcomes
+- **Modern Dashboard** - Real-time P&L, signals, and analytics
 
-### 🎯 Core Framework
-- **⚡ Next.js 16** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
-
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
-
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
-
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Fetch** - Promise-based HTTP request
-
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
-
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
-
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
+---
 
 ## 🚀 Quick Start
 
+### Step 1: Prerequisites
+
+Ensure you have installed:
+- **Node.js** 18+ 
+- **Bun** (recommended) or npm
+- **Git**
+
+### Step 2: Clone & Install
+
 ```bash
-# Install dependencies
+# Navigate to project
+cd /home/z/my-project
+
+# Install dependencies (if not already installed)
 bun install
-
-# Start development server
-bun run dev
-
-# Build for production
-bun run build
-
-# Start production server
-bun start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
+### Step 3: Setup Database
 
-## 🤖 Powered by Z.ai
+```bash
+# Push Prisma schema to database
+bun run db:push
+```
 
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
+### Step 4: Start Development Server
 
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
+```bash
+# Start Next.js development server
+bun run dev
+```
 
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
+### Step 5: Access Dashboard
+
+Open your browser and go to:
+- **Local**: http://localhost:3000
+- **Preview Panel**: Click "Open in New Tab" button
+
+---
 
 ## 📁 Project Structure
 
 ```
-src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
+/home/z/my-project/
+├── 📁 prisma/
+│   └── schema.prisma          # Database schema
+│
+├── 📁 src/
+│   ├── 📁 app/
+│   │   ├── page.tsx           # Main Dashboard UI
+│   │   ├── layout.tsx         # App layout
+│   │   ├── globals.css        # Global styles
+│   │   └── 📁 api/
+│   │       └── 📁 trading/
+│   │           ├── route.ts       # Main API
+│   │           ├── llm/route.ts   # AI Brain API
+│   │           ├── scan/route.ts  # Stock Scanner
+│   │           ├── analyze/route.ts
+│   │           ├── smc/route.ts   # Smart Money Concepts
+│   │           ├── risk/route.ts  # Risk Analysis
+│   │           ├── trades/route.ts
+│   │           └── dashboard/route.ts
+│   │
+│   ├── 📁 components/ui/      # 45+ UI components
+│   │
+│   ├── 📁 lib/
+│   │   ├── utils.ts
+│   │   ├── api.ts
+│   │   ├── db.ts              # Prisma client
+│   │   └── 📁 trading/
+│   │       ├── index.ts
+│   │       ├── types.ts       # TypeScript types
+│   │       ├── nifty500.ts    # Nifty 500 symbols
+│   │       ├── data-service.ts    # Yahoo Finance
+│   │       ├── analysis-engine.ts # Technical analysis
+│   │       ├── llm-brain.ts       # AI Brain
+│   │       ├── learning-system.ts # Learning
+│   │       ├── 📁 agents/     # AI Agents
+│   │       │   ├── decision-agent.ts
+│   │       │   ├── risk-agent.ts
+│   │       │   ├── learning-agent.ts
+│   │       │   └── research-agent.ts
+│   │       └── 📁 smc/        # Smart Money Concepts
+│   │           ├── structure.ts
+│   │           ├── liquidity.ts
+│   │           ├── orderblock.ts
+│   │           ├── fvg.ts
+│   │           ├── swing.ts
+│   │           ├── regime.ts
+│   │           └── confluence.ts
+│   │
+│   └── 📁 hooks/
+│       ├── use-toast.ts
+│       └── use-mobile.ts
+│
+├── 📁 public/
+│   ├── logo.svg
+│   └── robots.txt
+│
+├── 📁 mini-services/          # Optional microservices
+│   ├── 📁 trading-api/
+│   └── 📁 trading-engine/
+│
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── next.config.ts
+├── Caddyfile
+└── README.md
 ```
-
-## 🎨 Available Features & Components
-
-This scaffold includes a comprehensive set of modern web development tools:
-
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
-
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
-
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
-
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Fetch + TanStack Query
-- **State Management**: Simple and scalable with Zustand
-
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
-
-## 🤝 Get Started with Z.ai
-
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
 
 ---
 
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+## 🔧 Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Start development server |
+| `bun run build` | Build for production |
+| `bun run start` | Start production server |
+| `bun run lint` | Run ESLint |
+| `bun run db:push` | Push database schema |
+| `bun run db:studio` | Open Prisma Studio |
+
+---
+
+## 📊 Dashboard Features
+
+### 1. **Overview Tab**
+- Total stocks tracked
+- Active signals count
+- Pending signals
+- LLM brain status
+- Data sync status
+
+### 2. **Signals Tab**
+- Real-time trade signals
+- 80%+ confidence filter
+- Entry/Stop Loss/Target
+- Risk-Reward ratio
+- Signal history
+
+### 3. **Learning Tab**
+- Trade outcomes tracking
+- What worked / What failed
+- Strategy improvements
+- Pattern recognition
+
+### 4. **P&L Tab**
+- Profit/Loss tracking
+- Win rate statistics
+- Performance charts
+- Trade history
+
+### 5. **Watchlist Tab**
+- Favorite stocks
+- Custom alerts
+- Quick analysis
+
+---
+
+## 🤖 AI Brain Features
+
+### Decision Agent
+- Analyzes market conditions
+- Generates trade signals
+- Confidence scoring
+
+### Risk Agent
+- Position sizing
+- Risk assessment
+- Portfolio balance
+
+### Learning Agent
+- Learns from outcomes
+- Improves strategies
+- Pattern recognition
+
+### Research Agent
+- Market research
+- News sentiment
+- Sector analysis
+
+---
+
+## 📈 Smart Money Concepts (SMC)
+
+The system uses professional trading concepts:
+
+- **Structure** - Market structure (HH, HL, LH, LL)
+- **Liquidity** - Buy-side/Sell-side liquidity
+- **Order Blocks** - Institutional order zones
+- **FVG** - Fair Value Gaps
+- **Swing Points** - Swing highs and lows
+- **Market Regime** - Trend identification
+- **Confluence** - Multiple signal confirmation
+
+---
+
+## 🔌 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/trading` | GET/POST | Main trading API |
+| `/api/trading/scan` | GET | Scan stocks |
+| `/api/trading/analyze` | POST | Analyze stock |
+| `/api/trading/llm` | GET/POST | AI Brain |
+| `/api/trading/smc` | POST | SMC Analysis |
+| `/api/trading/risk` | POST | Risk Analysis |
+| `/api/trading/trades` | GET | Trade history |
+| `/api/trading/dashboard` | GET | Dashboard data |
+
+---
+
+## 🌐 Data Sources
+
+### Yahoo Finance (Free)
+- Real-time stock prices
+- Historical data
+- No API key required
+- Rate limit: 2000 requests/hour
+
+### Nifty 500 Symbols
+- Auto-loaded from built-in list
+- Sector classification
+- Market cap data
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Create `.env` file:
+
+```env
+# Database
+DATABASE_URL="file:./dev.db"
+
+# AI Brain (optional - uses z-ai-web-dev-sdk)
+# No additional config needed
+
+# Server
+PORT=3000
+```
+
+---
+
+## 📱 Responsive Design
+
+Dashboard is fully responsive:
+- ✅ Desktop (1920px+)
+- ✅ Laptop (1366px+)
+- ✅ Tablet (768px+)
+- ✅ Mobile (375px+)
+
+---
+
+## 🛡️ Safety Features
+
+- **Paper Trading** - Test without real money
+- **Risk Limits** - Maximum loss protection
+- **Confidence Filter** - Only high-probability trades
+- **Stop Loss** - Automatic risk management
+
+---
+
+## 🔄 Workflow
+
+### Daily Workflow
+
+1. **Market Open (9:15 AM)**
+   - System scans Nifty 500 stocks
+   - Fetches latest data from Yahoo Finance
+   - Runs technical analysis
+
+2. **Signal Generation**
+   - AI Brain analyzes patterns
+   - Confluence scoring (need 80%+)
+   - Generates trade signals
+
+3. **Trade Tracking**
+   - Monitor open positions
+   - Track 5-day holding period
+   - Update P&L
+
+4. **Learning**
+   - Record trade outcomes
+   - Update strategies
+   - Improve accuracy
+
+---
+
+## 🐛 Troubleshooting
+
+### Server won't start
+```bash
+# Kill existing process
+pkill -f "next dev"
+
+# Restart
+bun run dev
+```
+
+### Database errors
+```bash
+# Reset database
+rm -f prisma/dev.db
+bun run db:push
+```
+
+### No data showing
+```bash
+# Check data fetch status in dashboard
+# Click "Fetch Data" button
+```
+
+---
+
+## 📞 Support
+
+For issues or questions:
+1. Check the dashboard logs
+2. Review API responses
+3. Check database status
+
+---
+
+## 📄 License
+
+MIT License - Free for personal and educational use.
+
+---
+
+## 🙏 Credits
+
+- **Next.js 16** - React Framework
+- **Prisma** - Database ORM
+- **shadcn/ui** - UI Components
+- **Tailwind CSS** - Styling
+- **Yahoo Finance** - Market Data
+- **z-ai-web-dev-sdk** - AI Integration
+
+---
+
+**Made with ❤️ for Indian Traders**

@@ -1,0 +1,10 @@
+{
+  "name": "trading-api",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5"
+  }
+}
